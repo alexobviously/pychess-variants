@@ -195,6 +195,10 @@ label.piece.piece4.seirawan {
     background-image: url('images/pieces/kaneo/wH.svg');
 }
 
+label.piece.piece0.musketeer{
+    background-image: url('images/pieces/musketeer/wS.svg');
+}
+
 label.board.board0.standard10x8 {
     background-image: url('images/board/10x8brown.svg');
 }

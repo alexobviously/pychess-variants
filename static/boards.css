@@ -7,6 +7,7 @@
   --crazyhouse-board: url('images/board/8x8brown.svg');
   --placement-board: url('images/board/8x8brown.svg');
   --seirawan-board: url('images/board/8x8brown.svg');
+  --musketeer-board: url('images/board/8x8brown.svg');
   --shouse-board: url('images/board/8x8brown.svg');
   --shogi-board: url('images/board/shogi.svg');
   --minishogi-board: url('images/board/minishogi.svg');
@@ -49,6 +50,9 @@
 }
 .seirawan-board .cg-wrap {
   background-image: var(--seirawan-board);
+}
+.musketeer-board .cg-wrap {
+  background-image: var(--musketeer-board);
 }
 .shouse-board .cg-wrap {
   background-image: var(--shouse-board);
