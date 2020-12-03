@@ -635,7 +635,8 @@ export function lobbyView(model): VNode[] {
         h('under-lobby'),
         h('under-right', [
             h('a', { attrs: { href: '/players' } }, [ h('counter#u_cnt', _('0 players')) ]),
-            h('a', { attrs: { href: '/games' } }, [ h('counter#g_cnt', _('0 games in play')) ]),
+            h('a', { attrs: { href: '/games' } }, [ h('counter#g_cnt', _('0 games in play HELLO WORLD')) ]),
+            h('a', { attrs: { href: '/games' } }, [ 'hello' ]),
         ]),
     ];
 }

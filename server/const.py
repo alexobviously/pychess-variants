@@ -50,6 +50,7 @@ VARIANTS = (
     "orda",
     "synochess",
     "hoppelpoppel",
+    "musketeer",
 )
 
 VARIANT_ICONS = {
@@ -86,6 +87,7 @@ VARIANT_ICONS = {
     "synochess": "_",
     "hoppelpoppel": "`",
     "manchu": "{",
+    "musketeer": "`",
 }
 
 VARIANT_960_TO_PGN = {

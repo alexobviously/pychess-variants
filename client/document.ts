@@ -82,6 +82,7 @@ export function changePieceCSS(family: string, cssFile: string) {
         case "synochess": cssLinkIndex += 12; break;
         case "hoppel": cssLinkIndex += 13; break;
         case "dobutsu": cssLinkIndex += 14; break;
+        case "musketeer": cssLinkIndex += 15; break;
         default: throw "Unknown piece family " + family;
     }
     changeCSS(cssLinkIndex, "/static/piece/" + family + "/" + cssFile + ".css");

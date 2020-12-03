@@ -48,6 +48,7 @@ export const PIECE_FAMILIES: { [key: string]: PieceFamily } = {
     orda: { pieceCSS: ["orda0", "orda1"], baseURL: ["orda/merida", "orda/cburnett"] },
     synochess: { pieceCSS: ["synochess0", "synochess1", "synochess2", "synochess3", "synochess4", "synochess5"], baseURL: ["synochess/intl", "synochess/xq", "green", "xiangqi/ct3", "xiangqi/hnzw", "synochess/blackdisc"] },
     hoppel: { pieceCSS: ["hoppel0", "hoppel1", "hoppel2"], baseURL: ["merida", "hoppel/grafted", "hoppel/animal"] },
+    musketeer: {pieceCSS: ["musketeer0"], baseURL: ["musketeer"]},
 };
 
 export interface IVariant {
@@ -133,6 +134,7 @@ class Variant implements IVariant {
     readonly drop: boolean;
     readonly gate: boolean;
     readonly pass: boolean;
+    readonly commitGates: boolean;
 
     readonly alternateStart?: { [ name: string ]: string };
 
@@ -171,6 +173,7 @@ class Variant implements IVariant {
         this.drop = data.drop ?? false;
         this.gate = data.gate ?? false;
         this.pass = data.pass ?? false;
+        this.commitGates = data.commitGates ?? false;
 
         this.alternateStart = data.alternateStart;
 
@@ -523,6 +526,16 @@ export const VARIANTS: { [name: string]: IVariant } = {
         icon: "`",
     }),
 
+    musketeer: new Variant({
+        name: "musketeer", displayName: "musketeer", tooltip: _("Many new pieces with fixed gating"),
+        //startFen: "us******/rfbqkunr/pppppppp/8/8/8/8/PPPPPPPP/DNOQKBNR/US****** w KQkq - 0 1",
+        startFen: "usdaoc**/rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/KSLHUCAO/USdaoc** w KQkq - 0 1",
+        board: "standard8x8", piece: "musketeer",
+        pieceRoles: ["king", "queen", "rook", "bishop", "knight", "pawn", "lancer", "hawk", "chancellor", "archbishop", "elephant", "unicorn", "cannon", "dragon", "ferz", "silver"],
+        enPassant: true, autoQueenable: true, commitGates: true,
+        icon: "`",
+    }),
+
 };
 
 export const variants = Object.keys(VARIANTS);
@@ -534,7 +547,7 @@ const variantGroups: { [ key: string ]: { label: string, variants: string[] } } 
     sea:      { label: "Southeast Asian variants", variants: [ "makruk", "makpong", "cambodian", "sittuyin" ] },
     shogi:    { label: "Shogi variants",           variants: [ "shogi", "minishogi", "kyotoshogi", "dobutsu" ] },
     xiangqi:  { label: "Xiangqi variants",         variants: [ "xiangqi", "manchu", "janggi", "minixiangqi" ] },
-    fairy:    { label: "Fairy piece variants",     variants: [ "capablanca", "capahouse", "seirawan", "shouse", "grand", "grandhouse", "shako", "shogun", "orda", "synochess", "hoppelpoppel" ] },
+    fairy:    { label: "Fairy piece variants",     variants: [ "capablanca", "capahouse", "seirawan", "shouse", "grand", "grandhouse", "shako", "shogun", "orda", "synochess", "hoppelpoppel", "musketeer" ] },
 };
 
 export function selectVariant(id, selected, onChange, hookInsert) {
@@ -594,6 +607,7 @@ const variant_classes = {
     orda: new Set(['enPassant']),
     synochess: new Set(['pocket', 'enPassant']),
     hoppelpoppel: new Set(['enPassant', 'autoQueen']),
+    musketeer: new Set(['enPassant', 'autoQueen', 'commitGates']),
 }
 
 export function isVariantClass(variant: string, variantClass: string) {
@@ -840,6 +854,8 @@ export const roleToSan = {
     silver: 'S',
     lance: 'L',
     banner: 'M',
+    unicorn: 'U',
+    spider: 'S',
 };
 
 // Use cases
@@ -860,6 +876,7 @@ export const sanToRole = {
     M: 'met',
     G: 'gold',
     S: 'silver',
+    U: 'unicorn',
     L: 'lance',
     p: 'pawn',
     n: 'knight',
@@ -875,6 +892,7 @@ export const sanToRole = {
     m: 'met',
     g: 'gold',
     s: 'silver',
+    u: 'unicorn',
     l: 'lance',
     '+L': 'plance',
     '+N': 'gold',
@@ -894,3 +912,21 @@ export function lc(str: string, letter: string, uppercase: boolean) {
             letterCount += 1;
     return letterCount;
 }
+
+// Separates the gates from the board for the Musketeer variant
+export function splitMusketeerFen(fen: string){
+    console.log(fen);
+    const start = fen.indexOf('/') + 1;
+    const end = fen.lastIndexOf('/');
+    const board = fen.substring(start, end);
+    const blackGate = fen.substring(0, start - 1);
+    const whiteGate = fen.substring(end + 1);
+    console.log("splitmusketeerfen: "+board+", "+whiteGate+", "+blackGate);
+    return [board, whiteGate, blackGate];
+}   
+
+// TODO: create a way to get this from chessgroundx/fen.ts instead
+export const rolesVariants: { [letter: string]: string } = {
+    p: 'pawn', r: 'rook', n: 'knight', b: 'bishop', q: 'queen', k: 'king',
+    m: 'met', f: 'ferz', s: 'silver', c: 'chancellor', a: 'archbishop',
+    h: 'hawk', e: 'elephant', y: 'yurt', l: 'lancer', u: 'unicorn', d: 'dragon', o: 'cannon'};

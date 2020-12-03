@@ -82,6 +82,8 @@ export default class AnalysisController {
     vpocket1: any;
     vplayer0: any;
     vplayer1: any;
+    vgate0: any;
+    vgate1: any;
     vpgn: any;
     vscore: any;
     vinfo: any;
@@ -125,6 +127,8 @@ export default class AnalysisController {
     isEngineReady: boolean;
     notation: Notation;
     notationAsObject: any;
+    committedGates: any;
+    hasCommittedGates: boolean;
 
     constructor(el, model) {
         this.isAnalysisBoard = model["gameId"] === "";

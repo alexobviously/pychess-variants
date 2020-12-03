@@ -56,4 +56,5 @@ blackDropRegion = *5
 flagPiece = k
 whiteFlag = *8
 blackFlag = *1
+
 `

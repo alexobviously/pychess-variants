@@ -250,6 +250,9 @@ under-left {
 under-board {
     grid-area: uboard;
 }
+above-board {
+    grid-area: aboard;
+}
 div#fentext {
     display: flex;
     flex-flow: row;

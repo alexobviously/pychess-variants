@@ -10,7 +10,7 @@ import { dragNewPiece } from 'chessgroundx/drag';
 import { Color, dimensions } from 'chessgroundx/types';
 //import { setDropMode, cancelDropMode } from 'chessgroundx/drop';
 
-import { VARIANTS, roleToSan, lc } from './chess';
+import { VARIANTS, roleToSan, lc, splitMusketeerFen, rolesVariants } from './chess';
 import RoundController from './roundCtrl';
 import AnalysisController from './analysisCtrl';
 
@@ -46,6 +46,40 @@ export function pocketView(ctrl: RoundController | AnalysisController, color: Co
         'data-role': role,
         'data-color': color,
         'data-nb': nb,
+      }
+    });
+  }));
+}
+
+// for Musketeer 'commit gates'
+export function gateView(ctrl: RoundController | AnalysisController, color: Color, position: Position, gate: any) {
+  //const pocket = ctrl.pockets[position === 'top' ? 0 : 1];
+  //const roles = //Object.keys(pocket);
+  console.log("gateView: "+gate+" position: "+position);
+  console.log('width: '+ dimensions[VARIANTS[ctrl.variant].geometry].width);
+  console.log('height: '+ dimensions[VARIANTS[ctrl.variant].geometry].height);
+  return h('div.pocket.' + position, {
+    class: { usable: true },
+    style: {
+        '--pocketLength': String(gate!.length),
+        '--files': String(dimensions[VARIANTS[ctrl.variant].geometry].width),
+        '--ranks': String(dimensions[VARIANTS[ctrl.variant].geometry].height),
+    },
+  }, gate.map(role => {
+    //let nb = pocket[role] || 0;
+    console.log(role);
+    if(role === '*') return h('piece.empty', {
+      attrs: {
+        'data-role': 'pawn',
+        'data-color': color,
+        'data-nb': -1,
+      }
+    });
+    else return h('piece.' + role + '.' + color, {
+      attrs: {
+        'data-role': role,
+        'data-color': color,
+        'data-nb': -1,
       }
     });
   }));
@@ -126,4 +160,24 @@ export function updatePockets(ctrl: RoundController | AnalysisController, vpocke
         ctrl.vpocket0 = patch(vpocket0, pocketView(ctrl, (ctrl.flip) ? ctrl.mycolor : ctrl.oppcolor, "top"));
         ctrl.vpocket1 = patch(vpocket1, pocketView(ctrl, (ctrl.flip) ? ctrl.oppcolor : ctrl.mycolor, "bottom"));
     }
+}
+
+export function updateCommittedGates(ctrl: RoundController | AnalysisController, vgate0, vgate1): void{
+  console.log("updateCommittedGates");
+  if(ctrl.hasCommittedGates){
+    console.log("hasCommittedGates == true");
+    const mfen = splitMusketeerFen(ctrl.fullfen.split(" ")[0]);
+    console.log("mfen: "+mfen);
+    for(let i = 0; i < 2; i++){
+      const gateString = mfen[i+1];
+      console.log(i+": "+gateString);
+      for(let j = 0; j < gateString.length; j++){
+        var letter = gateString[j].toLowerCase();
+        if(letter != '*' && rolesVariants[letter] != undefined) ctrl.committedGates[i][j] = rolesVariants[letter];
+        else ctrl.committedGates[i][j] = '*';
+      }
+    }
+    ctrl.vgate0 = patch(vgate0, gateView(ctrl, (ctrl.flip) ? ctrl.mycolor : ctrl.oppcolor, "top", ctrl.committedGates[(ctrl.flip)?0:1]));
+    ctrl.vgate1 = patch(vgate1, gateView(ctrl, (ctrl.flip) ? ctrl.oppcolor : ctrl.mycolor, "bottom", ctrl.committedGates[(ctrl.flip)?1:0]));
+  }
 }

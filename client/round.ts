@@ -69,6 +69,13 @@ export function roundView(model): VNode[] {
         h('div.roundchat#roundchat'),
     ]),
         h('div', [
+            h('div#pocket-wrapper0', [
+                h('div.' + variant.piece + '.' + model["variant"], [
+                    h('div.cg-wrap.pocket', [
+                        h('div#gate0'),
+                    ]),
+                ]),
+            ]),
             h('selection#mainboard.' + variant.board + '.' + variant.piece, [
                 h('div.cg-wrap.' + variant.cg, {
                     hook: {
@@ -114,11 +121,19 @@ export function roundView(model): VNode[] {
                     ]),
                 ]),
             ]),
+            h('div#debugspace'),
         ]),
         h('under-left#spectators'),
         h('under-board', [
             h('div#janggi-setup-buttons'),
             h('div#ctable-container'),
+            h('div#pocket-wrapper1', [
+                h('div.' + variant.piece + '.' + model["variant"], [
+                    h('div.cg-wrap.pocket', [
+                        h('div#gate1'),
+                    ]),
+                ]),
+            ]),
         ]),
     ];
 }
