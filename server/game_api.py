@@ -98,7 +98,12 @@ async def get_user_games(request):
             ]
         else:
             filter_cond["$or"] = [{"r": "a", "us.1": profileId}, {"r": "b", "us.0": profileId}]
-    elif variant in VARIANTS:
+    elif "/rated" in request.path:
+        filter_cond["$or"] = [{"y": 1, "us.1": profileId}, {"y": 1, "us.0": profileId}]
+    elif "/import" in request.path:
+        filter_cond["by"] = profileId
+        filter_cond["y"] = 2
+    elif "/perf" in request.path and variant in VARIANTS:
         if variant.endswith("960"):
             v = V2C[variant[:-3]]
             z = 1
@@ -128,47 +133,78 @@ async def get_user_games(request):
             doc["wt"] = users[doc["us"][0]].title if doc["us"][0] in users else ""
             doc["bt"] = users[doc["us"][1]].title if doc["us"][1] in users else ""
             game_doc_list.append(doc)
+
     # print("GAMES:", game_doc_list)
     return web.json_response(game_doc_list, dumps=partial(json.dumps, default=datetime.isoformat))
+
+
+async def cancel_invite(request):
+    gameId = request.match_info.get("gameId")
+    seeks = request.app["seeks"]
+    invites = request.app["invites"]
+
+    if gameId in invites:
+        seek_id = invites[gameId].id
+        seek = request.app["seeks"][seek_id]
+        user = seek.user
+        try:
+            del invites[gameId]
+            del seeks[seek_id]
+            del user.seeks[seek_id]
+        except KeyError:
+            # Seek was already deleted
+            pass
+
+    raise web.HTTPFound("/")
+
+
+async def subscribe_invites(request):
+    async with sse_response(request) as response:
+        app = request.app
+        queue = asyncio.Queue()
+        app['invite_channels'].add(queue)
+        try:
+            while not response.task.done():
+                payload = await queue.get()
+                await response.send(payload)
+                queue.task_done()
+        finally:
+            app['invite_channels'].remove(queue)
+    return response
 
 
 async def subscribe_games(request):
     async with sse_response(request) as response:
         app = request.app
         queue = asyncio.Queue()
-        app['channels'].add(queue)
+        app['game_channels'].add(queue)
         try:
             while not response.task.done():
                 payload = await queue.get()
                 await response.send(payload)
                 queue.task_done()
-        except ConnectionResetError:
-            pass
         finally:
-            app['channels'].remove(queue)
+            app['game_channels'].remove(queue)
     return response
 
 
 async def subscribe_notify(request):
-    try:
-        async with sse_response(request) as response:
-            session = await aiohttp_session.get_session(request)
-            session_user = session.get("user_name")
+    async with sse_response(request) as response:
+        session = await aiohttp_session.get_session(request)
+        session_user = session.get("user_name")
 
-            user = request.app["users"].get(session_user)
-            if user is None:
-                return response
+        user = request.app["users"].get(session_user)
+        if user is None:
+            return response
 
-            user.notify_queue = asyncio.Queue()
-            try:
-                while not response.task.done():
-                    payload = await user.notify_queue.get()
-                    await response.send(payload)
-                    user.notify_queue.task_done()
-            finally:
-                user.notify_queue = None
-    except ConnectionResetError:
-        return
+        user.notify_queue = asyncio.Queue()
+        try:
+            while not response.task.done():
+                payload = await user.notify_queue.get()
+                await response.send(payload)
+                user.notify_queue.task_done()
+        finally:
+            user.notify_queue = None
     return response
 
 
@@ -207,7 +243,7 @@ async def export(request):
                 game_counter += 1
             except Exception:
                 failed += 1
-                log.error("Failed to load game %s %s %s (early games may contain invalid moves)" % (doc["_id"], C2V[doc["v"]], doc["d"].strftime("%Y.%m.%d")))
+                log.error("Failed to load game %s %s %s (early games may contain invalid moves)", doc["_id"], C2V[doc["v"]], doc["d"].strftime("%Y.%m.%d"))
                 continue
         print('failed/all:', failed, game_counter)
     pgn_text = "\n".join(game_list)

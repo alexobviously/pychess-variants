@@ -11,17 +11,46 @@ import { VNode } from 'snabbdom/vnode';
 
 import { Chessground } from 'chessgroundx';
 
-import { _, _n } from './i18n';
+import { _, ngettext } from './i18n';
 import { VARIANTS } from './chess';
 import { renderTimeago } from './datetime';
 import { boardSettings } from './boardSettings';
+import { timeControlStr } from './view';
+
+export function colorNames(color) {
+    const colors = {
+    "White": _("White"),
+    "Black": _("Black"),
+    "Red": _("Red"),
+    "Blue": _("Blue"),
+    "Gold": _("Gold"),
+    }
+    return colors[color];
+}
+
+export function gameType(rated) {
+    switch (rated) {
+    case "1":
+    case 1:
+        return _("Rated");
+    case "2":
+    case 2:
+        return _("IMPORT");
+    default:
+        return _("Casual");
+    }
+}
+
+export function aiLevel(title, level) {
+    return (title === 'BOT' && level >= 0) ? ' ' + _('level %1', level): '';
+}
 
 export function result(variantName, status, result) {
     let text = '';
     console.log("result()", variantName, status, result);
     const variant = VARIANTS[variantName];
-    const first = _(variant.firstColor);
-    const second = _(variant.secondColor);
+    const first = colorNames(variant.firstColor);
+    const second = colorNames(variant.secondColor);
     switch (status) {
         case -2:
         case -1:
@@ -83,8 +112,10 @@ export function renderRdiff(rdiff) {
         return h('span', '±0');
     } else if (rdiff < 0) {
         return h('bad', rdiff);
-    } else {
+    } else if (rdiff > 0) {
         return h('good', '+' + rdiff);
+    } else {
+        return h('span');
     }
 }
 
@@ -113,7 +144,7 @@ function renderGames(model, games) {
                 h('div.info0.games.icon', { attrs: { "data-icon": variant.icon(chess960) } }, [
                     // h('div.info1.icon', { attrs: { "data-icon": (game["z"] === 1) ? "V" : "" } }),
                     h('div.info2', [
-                        h('div.tc', game["b"] + "+" + (game["bp"] > 1 ? game["bp"] + "x" : "") + game["i"] + (game["bp"] > 0 ? "(b)" : "") + " • " + ((game["y"] === 1) ? _("Rated") : _("Casual")) + " • " + variant.displayName(chess960)),
+                        h('div.tc', timeControlStr(game["b"], game["i"], game["bp"]) + " • " + gameType(game["y"]) + " • " + variant.displayName(chess960)),
                         h('info-date', { attrs: { timestamp: game["d"] } }),
                     ]),
                 ]),
@@ -122,7 +153,7 @@ function renderGames(model, games) {
                         h('player', [
                             h('a.user-link', { attrs: { href: '/@/' + game["us"][0] } }, [
                                 h('player-title', " " + game["wt"] + " "),
-                                game["us"][0] + ((game["wt"] === 'BOT' && game['x'] >= 0) ? _(' level ') + game['x']: ''),
+                                game["us"][0] + aiLevel(game["wt"], game['x']),
                                 h('br'),
                                 (game["p0"] === undefined) ? "": game["p0"]["e"] + " ",
                                 (game["p0"] === undefined) ? "": renderRdiff(game["p0"]["d"]),
@@ -132,7 +163,7 @@ function renderGames(model, games) {
                         h('player', [
                             h('a.user-link', { attrs: { href: '/@/' + game["us"][1] } }, [
                                 h('player-title', " " + game["bt"] + " "),
-                                game["us"][1] + ((game["bt"] === 'BOT' && game['x'] >= 0) ? _(' level ') + game['x']: ''),
+                                game["us"][1] + aiLevel(game["bt"], game['x']),
                                 h('br'),
                                 (game["p1"] === undefined) ? "": game["p1"]["e"] + " ",
                                 (game["p1"] === undefined) ? "": renderRdiff(game["p1"]["d"]),
@@ -148,7 +179,7 @@ function renderGames(model, games) {
                 ]),
                 h('div.info0.games', [
                     h('div', [
-                        h('div.info0', game["m"] === undefined ? "" : _n("%1 move", "%1 moves", game["m"].length)),
+                        h('div.info0', game["m"] === undefined ? "" : ngettext("%1 move", "%1 moves", game["m"].length)),
                         h('div.info0', game["a"] === undefined ? "" : [ h('span.icon', { attrs: {"data-icon": "3"} }), _("Computer analysis available") ]),
                     ]),
                 ]),
@@ -164,7 +195,11 @@ function loadGames(model, page) {
     if (model.level) {
         url = url + "/loss?x=8&p=";
     } else if (model.variant) {
-        url = url + "/" + model.variant + "?p=";
+        url = url + "/perf/" + model.variant + "?p=";
+    } else if (model.rated === "1") {
+        url = url + "/rated" + "?p=";
+    } else if (model.rated === "2") {
+        url = url + "/import" + "?p=";
     } else {
         url = url + "/all?p=";
     }
@@ -190,21 +225,19 @@ function loadGames(model, page) {
 function observeSentinel(vnode: VNode, model) {
     const sentinel = vnode.elm as HTMLElement;
     let page = 0;
+    const options = {root: null, rootMargin: '44px', threshold: 1.0};
 
     const intersectionObserver = new IntersectionObserver(entries => {
-        // If intersectionRatio is 0, the sentinel is out of view
-        // and we don't need to do anything. Exit the function
-        if (entries[0].intersectionRatio <= 0) return;
-
-        loadGames(model, page);
-        page += 1;
-    });
+        if (entries.some(entry => entry.intersectionRatio > 0)) {
+            loadGames(model, page);
+            page += 1;
+        }
+    }, options);
 
     intersectionObserver.observe(sentinel);
 }
 
 export function profileView(model) {
-    console.log(model);
     boardSettings.updateBoardAndPieceStyles();
     const anon = model["anon"] === 'True';
     return [
@@ -219,6 +252,10 @@ export function profileView(model) {
                 attrs: { href: 'https://lichess.org/@/' + model["profileid"], title: _('Lichess profile') },
                 class: { "disabled": anon },
             }),
+            h('a.i-dl.icon.icon-cloud-upload', {
+                attrs: { href: '/paste', title: _('Import game') },
+                class: { "disabled": anon || model["title"] === 'BOT' },
+            }),
             h('a.i-dl.icon.icon-download', {
                 attrs: { href: '/games/export/' + model["profileid"], download: model["profileid"] + '.pgn', title: _('Export games') },
                 class: { "disabled": anon || model["title"] === 'BOT' },
@@ -230,6 +267,11 @@ export function profileView(model) {
                 attrs: { href: '/@/' + model["profileid"] + '/challenge', title: _('Challenge to a game') },
                 class: { "disabled": anon || model["username"] === model["profileid"] }
             }),
+        ]),
+        h('div.filter-tabs', [
+            h('div.sub-ratings', [h('a', { attrs: { href: '/@/' + model["profileid"] }, class: {"active": model["rated"] === "None"} }, _('Games'))]),
+            h('div.sub-ratings', [h('a', { attrs: { href: '/@/' + model["profileid"] + '/rated' }, class: {"active": model["rated"] === "1" } }, _('Rated'))]),
+            h('div.sub-ratings', [h('a', { attrs: { href: '/@/' + model["profileid"] + '/import' }, class: {"active": model["rated"] === "2" } }, _('Imported'))]),
         ]),
         h('table#games'),
         h('div#sentinel', { hook: { insert: (vnode) => observeSentinel(vnode, model) } }),

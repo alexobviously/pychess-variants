@@ -18,7 +18,7 @@ except ImportError:
     def html_minify(html):
         return html
 
-from const import LANGUAGES, STARTED, VARIANTS, VARIANT_ICONS
+from const import LANGUAGES, STARTED, VARIANTS, VARIANT_ICONS, RATED, IMPORTED, variant_display_name
 from fairy import FairyBoard
 from glicko2.glicko2 import DEFAULT_PERF, PROVISIONAL_PHI
 from robots import ROBOTS_TXT
@@ -46,17 +46,17 @@ async def index(request):
     session["last_visit"] = datetime.now().isoformat()
     session["guest"] = True
     if session_user is not None:
-        log.info("+++ Existing user %s connected." % session_user)
+        log.info("+++ Existing user %s connected.", session_user)
         doc = None
         try:
             doc = await db.user.find_one({"_id": session_user})
         except Exception:
-            log.error("Failed to get user %s from mongodb!" % session_user)
+            log.error("Failed to get user %s from mongodb!", session_user)
         if doc is not None:
             session["guest"] = False
 
             if not doc.get("enabled", True):
-                log.info("Closed account %s tried to connect." % session_user)
+                log.info("Closed account %s tried to connect.", session_user)
                 session.invalidate()
                 raise web.HTTPFound("/")
 
@@ -67,7 +67,7 @@ async def index(request):
                 session.invalidate()
                 raise web.HTTPFound(request.rel_url)
 
-            log.debug("New lichess user %s joined." % session_user)
+            log.debug("New lichess user %s joined.", session_user)
             title = session["title"] if "title" in session else ""
             perfs = {variant: DEFAULT_PERF for variant in VARIANTS}
             user = User(request.app, username=session_user, anon=session["guest"], title=title, perfs=perfs)
@@ -75,7 +75,7 @@ async def index(request):
         user.ping_counter = 0
     else:
         user = User(request.app, anon=True)
-        log.info("+++ New guest user %s connected." % user.username)
+        log.info("+++ New guest user %s connected.", user.username)
         users[user.username] = user
         session["user_name"] = user.username
 
@@ -113,16 +113,20 @@ async def index(request):
         view = "editor"
     elif request.path.startswith("/analysis"):
         view = "analysis"
+    elif request.path == "/paste":
+        view = "paste"
 
     profileId = request.match_info.get("profileId")
-
     variant = request.match_info.get("variant")
     if (variant is not None) and ((variant not in VARIANTS) and variant != "terminology"):
+        log.debug("Invalid variant %s in request", variant)
         return web.Response(status=404)
 
     fen = request.rel_url.query.get("fen")
+    rated = None
 
     if (fen is not None) and "//" in fen:
+        log.debug("Invelid FEN %s in request", fen)
         return web.Response(status=404)
 
     if profileId is not None:
@@ -131,6 +135,10 @@ async def index(request):
             view = "tv"
             # TODO: tv for variants
             gameId = await tv_game_user(db, users, profileId)
+        elif request.path[-7:] == "/import":
+            rated = IMPORTED
+        elif request.path[-6:] == "/rated":
+            rated = RATED
         elif "/challenge" in request.path:
             view = "lobby"
             if user.anon:
@@ -140,21 +148,31 @@ async def index(request):
     if gameId is not None:
         if view != "tv":
             view = "round"
-        game = await load_game(request.app, gameId)
-        if game is None:
-            log.debug("Requested game %s not in app['games']" % gameId)
-            template = get_template("404.html")
-            return web.Response(
-                text=html_minify(template.render({"home": URI})), content_type="text/html")
-        games[gameId] = game
 
-        if game.status > STARTED:
-            view = "analysis"
+        invites = request.app["invites"]
+        if (gameId not in games) and (gameId in invites):
+            if not request.path.startswith("/invite/accept/"):
+                seek_id = invites[gameId].id
+                seek = request.app["seeks"][seek_id]
+                view = "invite"
+                inviter = seek.user.username if user.username != seek.user.username else ""
 
-        if user.username != game.wplayer.username and user.username != game.bplayer.username:
-            game.spectators.add(user)
+        if view != "invite":
+            game = await load_game(request.app, gameId, user)
+            if game is None:
+                log.debug("Requested game %s not in app['games']", gameId)
+                template = get_template("404.html")
+                text = await template.render_async({"home": URI})
+                return web.Response(
+                    text=html_minify(text), content_type="text/html")
 
-    if view == "profile" or view == "level8win":
+            if game.status > STARTED:
+                view = "analysis"
+
+            if user.username != game.wplayer.username and user.username != game.bplayer.username:
+                game.spectators.add(user)
+
+    if view in ("profile", "level8win"):
         if (profileId in users) and not users[profileId].enabled:
             template = get_template("closed.html")
         else:
@@ -191,7 +209,7 @@ async def index(request):
         "fen": fen.replace(".", "+").replace("_", " ") if fen is not None else "",
         "variants": VARIANTS,
     }
-    if view == "profile" or view == "level8win":
+    if view in ("profile", "level8win"):
         if view == "level8win":
             profileId = "Fairy-Stockfish"
         render["title"] = "Profile • " + profileId
@@ -205,6 +223,8 @@ async def index(request):
         if variant is not None:
             render["variant"] = variant
         render["profile_title"] = users[profileId].title if profileId in users else ""
+        render["rated"] = rated
+        render["variant_display_name"] = variant_display_name
 
     if view == "players":
         online_users = [u for u in users.values() if u.online(user.username) and not u.anon]
@@ -216,35 +236,47 @@ async def index(request):
         render["online_users"] = online_users
         render["anon_online"] = anon_online
         # render["offline_users"] = offline_users
-        render["highscore"] = request.app["highscore"]
+        hs = request.app["highscore"]
+        render["highscore"] = {variant: dict(hs[variant].items()[:10]) for variant in hs}
+        render["variant_display_name"] = variant_display_name
     elif view == "allplayers":
         allusers = [u for u in users.values() if not u.anon]
         render["allusers"] = allusers
 
     if gameId is not None:
-        render["gameid"] = gameId
-        render["variant"] = game.variant
-        render["wplayer"] = game.wplayer.username
-        render["wtitle"] = game.wplayer.title
-        render["wrating"] = game.wrating
-        render["wrdiff"] = game.wrdiff
-        render["chess960"] = game.chess960
-        render["rated"] = game.rated
-        render["level"] = game.level
-        render["bplayer"] = game.bplayer.username
-        render["btitle"] = game.bplayer.title
-        render["brating"] = game.brating
-        render["brdiff"] = game.brdiff
-        render["fen"] = game.board.fen
-        render["base"] = game.base
-        render["inc"] = game.inc
-        render["byo"] = game.byoyomi_period
-        render["result"] = game.result
-        render["status"] = game.status
-        render["date"] = game.date.isoformat()
-        render["title"] = game.wplayer.username + ' vs ' + game.bplayer.username
-        if ply is not None:
-            render["ply"] = ply
+        if view == "invite":
+            render["gameid"] = gameId
+            render["variant"] = seek.variant
+            render["chess960"] = seek.chess960
+            render["rated"] = seek.rated
+            render["base"] = seek.base
+            render["inc"] = seek.inc
+            render["byo"] = seek.byoyomi_period
+            render["inviter"] = inviter
+        else:
+            render["gameid"] = gameId
+            render["variant"] = game.variant
+            render["wplayer"] = game.wplayer.username
+            render["wtitle"] = game.wplayer.title
+            render["wrating"] = game.wrating
+            render["wrdiff"] = game.wrdiff
+            render["chess960"] = game.chess960
+            render["rated"] = game.rated
+            render["level"] = game.level
+            render["bplayer"] = game.bplayer.username
+            render["btitle"] = game.bplayer.title
+            render["brating"] = game.brating
+            render["brdiff"] = game.brdiff
+            render["fen"] = game.board.fen
+            render["base"] = game.base
+            render["inc"] = game.inc
+            render["byo"] = game.byoyomi_period
+            render["result"] = game.result
+            render["status"] = game.status
+            render["date"] = game.date.isoformat()
+            render["title"] = game.wplayer.username + ' vs ' + game.bplayer.username
+            if ply is not None:
+                render["ply"] = ply
 
     if view == "level8win":
         render["level"] = 8
@@ -253,7 +285,7 @@ async def index(request):
     elif view == "variant":
         render["icons"] = VARIANT_ICONS
         # variant None indicates intro.md
-        if lang == "hu" or lang == "pt" or lang == "fr":
+        if lang in ("hu", "pt", "fr"):
             locale = ".%s" % lang
         elif lang == "zh":
             locale = ".%s" % lang if variant in (None,) else ""
@@ -263,6 +295,7 @@ async def index(request):
             render["variant"] = "docs/terminology%s.html" % locale
         else:
             render["variant"] = "docs/" + ("intro" if variant is None else variant) + "%s.html" % locale
+        render["variant_display_name"] = variant_display_name
 
     elif view == "faq":
         # TODO: make it translatable similar to above variant pages
@@ -277,7 +310,7 @@ async def index(request):
         render["fen"] = fen
 
     try:
-        text = template.render(render)
+        text = await template.render_async(render)
     except Exception:
         raise web.HTTPFound("/")
 

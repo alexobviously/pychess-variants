@@ -4,6 +4,9 @@ LANGUAGES = ["de", "en", "es", "fr", "hu", "it", "ja", "ko", "pt", "th", "zh"]
 # fishnet work types
 MOVE, ANALYSIS = 0, 1
 
+# game types
+CASUAL, RATED, IMPORTED = 0, 1, 2
+
 # game status
 CREATED, STARTED, ABORTED, MATE, RESIGN, STALEMATE, TIMEOUT, DRAW, FLAG, \
     ABANDONE, CHEAT, NOSTART, INVALIDMOVE, UNKNOWNFINISH, VARIANTEND, CLAIM = range(-2, 14)
@@ -42,6 +45,7 @@ VARIANTS = (
     # "gothic",
     # "gothhouse",
     "seirawan",
+    "seirawan960",
     "shouse",
     "grand",
     "grandhouse",
@@ -66,6 +70,7 @@ VARIANT_ICONS = {
     "capablanca": "P",
     "capahouse": "&",
     "seirawan": "L",
+    "seirawan960": "}",
     "shouse": "$",
     "grand": "(",
     "grandhouse": "*",
@@ -81,7 +86,6 @@ VARIANT_ICONS = {
     "capahouse960": "'",
     "crazyhouse960": "%",
     "kyotoshogi": ")",
-    "chess": "M",
     "shogun": "-",
     "orda": "R",
     "synochess": "_",
@@ -103,3 +107,15 @@ VARIANT_960_TO_PGN = {
     "placement": "Placement",
     "grand": "Grand",
 }
+
+
+def variant_display_name(variant):
+    if variant == "seirawan":
+        return "S-CHESS"
+    if variant == "seirawan960":
+        return "S-CHESS960"
+    if variant == "shouse":
+        return "S-HOUSE"
+    if variant == "cambodian":
+        return "OUK CHATRANG"
+    return variant.upper()

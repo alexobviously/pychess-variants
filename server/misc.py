@@ -2,6 +2,8 @@ import cProfile
 import pstats
 from timeit import default_timer
 
+import objgraph
+
 
 class OnDemand:
     """ Helper class to conditionally logging expensive tasks
@@ -43,9 +45,46 @@ class Timer:
 
 
 def time_control_str(base, inc, byo):
-    if byo == 0:
-        return "%d+%d" % (base, inc)
-    elif byo == 1:
-        return "%d+%d(b)" % (base, inc)
+    if base == 1 / 4:
+        base = "¼"
+    elif base == 1 / 2:
+        base = "½"
+    elif base == 3 / 4:
+        base = "¾"
     else:
-        return "%d+%dx%d(b)" % (base, byo, inc)
+        base = str(base)
+    if byo == 0:
+        inc_str = f"{inc}"
+    elif byo == 1:
+        inc_str = f"{inc}(b)"
+    else:
+        inc_str = f"{byo}x{inc}(b)"
+    return base + "+" + inc_str
+
+
+def server_state(app, amount=3):
+    print("=" * 40)
+    for akey in app:
+        length = len(app[akey]) if hasattr(app[akey], "__len__") else 1
+        print("--- %s %s ---" % (akey, length))
+        if isinstance(app[akey], dict):
+            items = list(app[akey].items())[:min(length, amount)]
+            for key, value in items:
+                print("   %s %s" % (key, value))
+        elif isinstance(app[akey], list):
+            for item in app[akey][:min(length, amount)]:
+                print("   %s" % item)
+        else:
+            print(app[akey])
+    print("=" * 40)
+
+    q = app["users"]["Random-Mover"].event_queue
+    print(" ... Random-Mover ...")
+    print(q)
+    q = app["users"]["Fairy-Stockfish"].event_queue
+    print(" ... Fairy-Stockfish ...")
+    print(q)
+
+
+def server_growth():
+    objgraph.show_growth()

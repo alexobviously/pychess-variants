@@ -14,7 +14,8 @@ import { VNode } from 'snabbdom/vnode';
 
 import { Chessground } from 'chessgroundx';
 
-import { _, _n } from './i18n';
+import { JSONObject } from './types';
+import { _, ngettext } from './i18n';
 import { chatMessage, chatView } from './chat';
 import { validFen, VARIANTS, selectVariant, IVariant } from './chess';
 import { sound } from './sound';
@@ -29,8 +30,18 @@ class LobbyController {
     player;
     logged_in;
     challengeAI: boolean;
+    inviteFriend: boolean;
     _ws;
     seeks;
+    minutesValues = [
+        0, 1 / 4, 1 / 2, 3 / 4, 1, 3 / 2, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+        17, 18, 19, 20, 25, 30, 35, 40, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180
+    ];
+    incrementValues = [
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+        25, 30, 35, 40, 45, 60, 90, 120, 150, 180
+    ];
+    minutesStrings = ["0", "¼", "½", "¾"];
 
     constructor(el, model) {
         console.log("LobbyController constructor", el, model);
@@ -40,6 +51,7 @@ class LobbyController {
 
         this.model = model;
         this.challengeAI = false;
+        this.inviteFriend = false;
 
         const onOpen = (evt) => {
             this._ws = evt.target;
@@ -67,7 +79,7 @@ class LobbyController {
         // get seeks when we are coming back after a game
         if (this._ws.readyState === 1) {
             this.doSend({ type: "get_seeks" });
-        };
+        }
         patch(document.getElementById('seekbuttons') as HTMLElement, h('div#seekbuttons', this.renderSeekButtons()));
         patch(document.getElementById('lobbychat') as HTMLElement, chatView(this, "lobbychat"));
 
@@ -75,6 +87,7 @@ class LobbyController {
         const anon = this.model.anon === 'True';
         if (model.profileid !== "") {
             this.challengeAI = model.profileid === 'Fairy-Stockfish';
+            this.inviteFriend = model.profileid === 'Invite-friend';
             document.getElementById('game-mode')!.style.display = (anon || this.challengeAI) ? 'none' : 'inline-flex';
             document.getElementById('challenge-block')!.style.display = 'inline-flex';
             document.getElementById('ailevel')!.style.display = this.challengeAI ? 'block' : 'none';
@@ -88,7 +101,7 @@ class LobbyController {
             e.disabled = true;
     }
 
-    doSend(message: any) {
+    doSend(message: JSONObject) {
         // console.log("---> lobby doSend():", message);
         this.sock.send(JSON.stringify(message));
     }
@@ -98,6 +111,23 @@ class LobbyController {
             type: "create_seek",
             user: this.model.username,
             target: this.model.profileid,
+            variant: variant,
+            fen: fen,
+            minutes: minutes,
+            increment: increment,
+            byoyomiPeriod: byoyomiPeriod,
+            rated: rated,
+            alternateStart: alternateStart,
+            chess960: chess960,
+            color: color
+        });
+    }
+
+    createInviteFriendMsg(variant: string, color: string, fen: string, minutes: number, increment: number, byoyomiPeriod: number, chess960: boolean, rated: boolean, alternateStart: string) {
+        this.doSend({
+            type: "create_invite",
+            user: this.model.username,
+            target: 'Invite-friend',
             variant: variant,
             fen: fen,
             minutes: minutes,
@@ -131,7 +161,7 @@ class LobbyController {
         // console.log("isNewSeek()?", variant, color, fen, minutes, increment, byoyomiPeriod, chess960, rated);
         // console.log(this.seeks);
         return !this.seeks.some(seek =>
-            seek.user === this.model["username"] && 
+            seek.user === this.model["username"] &&
             seek.variant === variant &&
             seek.fen === fen &&
             seek.color === color &&
@@ -165,11 +195,11 @@ class LobbyController {
         }
 
         e = document.getElementById('min') as HTMLInputElement;
-        const minutes = Number(e.value);
+        const minutes = this.minutesValues[Number(e.value)];
         localStorage.seek_min = e.value;
 
         e = document.getElementById('inc') as HTMLInputElement;
-        const increment = Number(e.value);
+        const increment = this.incrementValues[Number(e.value)];
         localStorage.seek_inc = e.value;
 
         e = document.getElementById('byo') as HTMLInputElement;
@@ -179,7 +209,7 @@ class LobbyController {
 
         e = document.querySelector('input[name="mode"]:checked') as HTMLInputElement;
         let rated: boolean;
-        if (!this.test_ratings && (this.challengeAI || this.model.anon === "True" || this.model.title === "BOT" || fen !== ""))
+        if (!this.test_ratings && (this.challengeAI || this.inviteFriend || this.model.anon === "True" || this.model.title === "BOT" || fen !== ""))
             rated = false;
         else
             rated = e.value === "1";
@@ -197,6 +227,8 @@ class LobbyController {
             localStorage.seek_level = e.value;
             // console.log(level, e.value, localStorage.getItem("seek_level"));
             this.createBotChallengeMsg(variant.name, seekColor, fen, minutes, increment, byoyomiPeriod, level, chess960, rated, alternateStart);
+        } else if (this.inviteFriend) {
+            this.createInviteFriendMsg(variant.name, seekColor, fen, minutes, increment, byoyomiPeriod, chess960, rated, alternateStart);
         } else {
             if (this.isNewSeek(variant.name, seekColor, fen, minutes, increment, byoyomiPeriod, chess960, rated))
                 this.createSeekMsg(variant.name, seekColor, fen, minutes, increment, byoyomiPeriod, chess960, rated, alternateStart);
@@ -261,16 +293,16 @@ class LobbyController {
                         h('label', { attrs: { for: "min" } }, _("Minutes per side:")),
                         h('span#minutes'),
                         h('input#min.slider', {
-                            props: { name: "min", type: "range", min: 0, max: 60, value: vMin },
+                            props: { name: "min", type: "range", min: 0, max: this.minutesValues.length - 1, value: vMin },
                             on: { input: e => this.setMinutes((e.target as HTMLInputElement).value) },
                             hook: { insert: vnode => this.setMinutes((vnode.elm as HTMLInputElement).value) },
                         }),
                         h('label#incrementlabel', { attrs: { for: "inc" } }, ''),
                         h('span#increment'),
                         h('input#inc.slider', {
-                            props: { name: "inc", type: "range", min: 0, max: 60, value: vInc },
-                            on: { input: e => this.setIncrement((e.target as HTMLInputElement).value) },
-                            hook: { insert: vnode => this.setIncrement((vnode.elm as HTMLInputElement).value) },
+                            props: { name: "inc", type: "range", min: 0, max: this.incrementValues.length - 1, value: vInc },
+                            on: { input: e => this.setIncrement(this.incrementValues[(e.target as HTMLInputElement).value]) },
+                            hook: { insert: vnode => this.setIncrement(this.incrementValues[(vnode.elm as HTMLInputElement).value]) },
                         }),
                         h('div#byoyomi-period', [
                             h('label#byoyomiLabel', { attrs: { for: "byo" } }, _('Periods')),
@@ -311,6 +343,7 @@ class LobbyController {
                 on: {
                     click: () => {
                         this.challengeAI = false;
+                        this.inviteFriend = false;
                         document.getElementById('game-mode')!.style.display = anon ? 'none' : 'inline-flex';
                         document.getElementById('challenge-block')!.style.display = 'none';
                         document.getElementById('ailevel')!.style.display = 'none';
@@ -323,7 +356,22 @@ class LobbyController {
             h('button.lobby-button', {
                 on: {
                     click: () => {
+                        this.challengeAI = false;
+                        this.inviteFriend = true;
+                        document.getElementById('game-mode')!.style.display = anon ? 'none' : 'inline-flex';
+                        document.getElementById('challenge-block')!.style.display = 'none';
+                        document.getElementById('ailevel')!.style.display = 'none';
+                        document.getElementById('id01')!.style.display = 'block';
+                    }
+                }
+            },
+                _("Play with a friend")
+            ),
+            h('button.lobby-button', {
+                on: {
+                    click: () => {
                         this.challengeAI = true;
+                        this.inviteFriend = false;
                         document.getElementById('game-mode')!.style.display = (!this.test_ratings || anon) ? 'none' : 'inline-flex';
                         document.getElementById('challenge-block')!.style.display = 'none';
                         document.getElementById('ailevel')!.style.display = 'inline-block';
@@ -335,7 +383,7 @@ class LobbyController {
     }
 
     private setVariant() {
-        let e: any;
+        let e;
         e = document.getElementById('variant') as HTMLSelectElement;
         const variant = VARIANTS[e.options[e.selectedIndex].value];
         const byoyomi = variant.timeControl === "byoyomi";
@@ -373,7 +421,8 @@ class LobbyController {
         (document.getElementById('chess960') as HTMLInputElement).disabled = alt !== "";
         this.setFen();
     }
-    private setMinutes(minutes) {
+    private setMinutes(val) {
+        const minutes = val < this.minutesStrings.length ? this.minutesStrings[val] : String(this.minutesValues[val]);
         document.getElementById("minutes")!.innerHTML = minutes;
         this.setStartButtons();
     }
@@ -441,7 +490,7 @@ class LobbyController {
                 "icon-black":  color === "b",
             }
         });
-    };
+    }
     private challengeIcon(seek) {
         const swords = (seek["user"] === this.model['username']) ? 'vs-swords.lobby.icon' : 'vs-swords.lobby.opp.icon';
         return (seek['target'] === '') ? null : h(swords, { attrs: {"data-icon": '"'} });
@@ -514,6 +563,9 @@ class LobbyController {
             case "u_cnt":
                 this.onMsgUserCounter(msg);
                 break;
+            case "invite_created":
+                this.onMsgInviteCreated(msg);
+                break;
             case "shutdown":
                 this.onMsgShutdown(msg);
                 break;
@@ -524,6 +576,10 @@ class LobbyController {
                 this.doSend({type: "logout"});
                 break;
         }
+    }
+
+    private onMsgInviteCreated(msg) {
+        window.location.assign('/' + msg.gameId);
     }
 
     private onMsgGetSeeks(msg) {
@@ -548,7 +604,7 @@ class LobbyController {
     private onMsgChat(msg) {
         chatMessage(msg.user, msg.message, "lobbychat");
         if (msg.user.length !== 0 && msg.user !== '_server')
-            sound.chat();
+            sound.socialNotify();
     }
     private onMsgFullChat(msg) {
         // To prevent multiplication of messages we have to remove old messages div first
@@ -570,12 +626,12 @@ class LobbyController {
     private onMsgGameCounter(msg) {
         console.log("Gcnt=", msg.cnt);
         const gameCount = document.getElementById('g_cnt') as HTMLElement;
-        patch(gameCount, h('counter#g_cnt', _n('%1 game in play', '%1 games in play', msg.cnt)));
+        patch(gameCount, h('counter#g_cnt', ngettext('%1 game in play', '%1 games in play', msg.cnt)));
     }
     private onMsgUserCounter(msg) {
         console.log("Ucnt=", msg.cnt);
         const userCount = document.getElementById('u_cnt') as HTMLElement;
-        patch(userCount as HTMLElement, h('counter#u_cnt', _n('%1 player', '%1 players', msg.cnt)));
+        patch(userCount as HTMLElement, h('counter#u_cnt', ngettext('%1 player', '%1 players', msg.cnt)));
     }
 
 }
@@ -583,7 +639,7 @@ class LobbyController {
 function seekHeader() {
     return h('thead', [
         h('tr', [
-            h('th', ''),
+            h('th', [h('div#santa')]),
             h('th', _('Player')),
             h('th', _('Rating')),
             h('th', _('Time')),
@@ -615,10 +671,10 @@ export function lobbyView(model): VNode[] {
     boardSettings.updateBoardAndPieceStyles();
 
     return [
-        h('aside.sidebar-first', [ h('div#lobbychat.lobbychat') ]),
+        h('aside.sidebar-first', [ h('div#lobbychat') ]),
         h('div.seeks', [
             h('div#seeks-table', [
-                h('table#seeks-header', { hook: { insert: _ => resizeSeeksHeader() } }, seekHeader()),
+                h('table#seeks-header', { hook: { insert: () => resizeSeeksHeader() } }, seekHeader()),
                 h('div#seeks-wrapper', h('table#seeks', { hook: { insert: vnode => runSeeks(vnode, model) } })),
             ]),
         ]),
@@ -630,13 +686,11 @@ export function lobbyView(model): VNode[] {
             h('a.reflist', { attrs: { href: '/faq' } }, _("FAQ")),
             h('a.reflist', { attrs: { href: '/stats' } }, _("Stats")),
             h('a.reflist', { attrs: { href: '/about' } }, _("About")),
-            h('a.reflist', { attrs: { href: 'https://pychess.github.io' } }, _("Original PyChess site")),
         ]),
         h('under-lobby'),
         h('under-right', [
-            h('a', { attrs: { href: '/players' } }, [ h('counter#u_cnt', _('0 players')) ]),
-            h('a', { attrs: { href: '/games' } }, [ h('counter#g_cnt', _('0 games in play HELLO WORLD')) ]),
-            h('a', { attrs: { href: '/games' } }, [ 'hello' ]),
+            h('a', { attrs: { href: '/players' } }, [ h('counter#u_cnt') ]),
+            h('a', { attrs: { href: '/games' } }, [ h('counter#g_cnt') ]),
         ]),
     ];
 }

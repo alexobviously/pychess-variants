@@ -1,6 +1,8 @@
+import asyncio
+import uvloop
+
 import argparse
 import gettext
-import asyncio
 import collections
 import logging
 import os
@@ -28,6 +30,8 @@ from seek import Seek
 from user import User
 
 log = logging.getLogger(__name__)
+
+asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 
 async def on_prepare(request, response):
@@ -79,8 +83,10 @@ async def init_state(app):
     app["lobbysockets"] = {}
     app["seeks"] = {}
     app["games"] = {}
-    app["chat"] = collections.deque([], 200)
-    app["channels"] = set()
+    app["invites"] = {}
+    app["chat"] = collections.deque([], 100)
+    app["game_channels"] = set()
+    app["invite_channels"] = set()
     app["highscore"] = {variant: ValueSortedDict(neg) for variant in VARIANTS}
     app["crosstable"] = {}
     app["stats"] = {}
@@ -133,16 +139,17 @@ async def init_state(app):
                 with open(moname, 'wb') as mo_file:
                     mo_file.write(mo)
         except PoSyntaxError:
-            log.error("PoSyntaxError in %s" % poname)
+            log.error("PoSyntaxError in %s", poname)
 
         # Create translation class
         try:
             translation = gettext.translation("server", localedir="lang", languages=[lang])
         except FileNotFoundError:
-            log.warning("Missing translations file for lang %s" % lang)
+            log.warning("Missing translations file for lang %s", lang)
             translation = gettext.NullTranslations()
 
         env = jinja2.Environment(
+            enable_async=True,
             extensions=['jinja2.ext.i18n'],
             loader=jinja2.FileSystemLoader("templates"),
             autoescape=jinja2.select_autoescape(["html"]))
@@ -187,6 +194,11 @@ async def init_state(app):
         cursor = app["db"].crosstable.find()
         async for doc in cursor:
             app["crosstable"][doc["_id"]] = doc
+
+        await app["db"].game.create_index("us")
+        await app["db"].game.create_index("v")
+        await app["db"].game.create_index("y")
+        await app["db"].game.create_index("by")
 
     except Exception:
         print("Maybe mongodb is not running...")

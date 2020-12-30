@@ -1,10 +1,12 @@
 import logging
 import random
-import string
+from datetime import datetime
+import json
 
+from aiohttp import web
 from aiohttp.web import WebSocketResponse
 
-from game import MAX_PLY
+from game import new_game_id, MAX_PLY
 
 try:
     import pyffish as sf
@@ -13,8 +15,9 @@ except ImportError:
     print("No pyffish module installed!")
 
 from broadcast import round_broadcast
-from const import DRAW, STARTED, VARIANT_960_TO_PGN, INVALIDMOVE, GRANDS
-from compress import decode_moves, R2C, C2R, V2C, C2V
+from const import DRAW, STARTED, VARIANT_960_TO_PGN, INVALIDMOVE, GRANDS, \
+    UNKNOWNFINISH, CASUAL, RATED, IMPORTED
+from compress import decode_moves, encode_moves, R2C, C2R, V2C, C2V
 from convert import mirror5, mirror9, usi2uci, grand2zero, zero2grand
 from fairy import BLACK, STANDARD_FEN, FairyBoard
 from game import Game
@@ -34,29 +37,27 @@ async def tv_game(db, app):
     """ Get latest played game id """
     if app["tv"] is not None:
         return app["tv"]
-    else:
-        game_id = None
-        doc = await db.game.find_one({}, sort=[('$natural', -1)])
-        if doc is not None:
-            game_id = doc["_id"]
-            app["tv"] = game_id
-        return game_id
+    game_id = None
+    doc = await db.game.find_one({}, sort=[('$natural', -1)])
+    if doc is not None:
+        game_id = doc["_id"]
+        app["tv"] = game_id
+    return game_id
 
 
 async def tv_game_user(db, users, profileId):
     """ Get latest played game id by a given user name"""
     if users[profileId].tv is not None:
         return users[profileId].tv
-    else:
-        game_id = None
-        doc = await db.game.find_one({"us": profileId}, sort=[('$natural', -1)])
-        if doc is not None:
-            game_id = doc["_id"]
-            users[profileId].tv = game_id
-        return game_id
+    game_id = None
+    doc = await db.game.find_one({"us": profileId}, sort=[('$natural', -1)])
+    if doc is not None:
+        game_id = doc["_id"]
+        users[profileId].tv = game_id
+    return game_id
 
 
-async def load_game(app, game_id):
+async def load_game(app, game_id, user=None):
     """ Return Game object from app cache or from database """
     db = app["db"]
     games = app["games"]
@@ -67,6 +68,19 @@ async def load_game(app, game_id):
     doc = await db.game.find_one({"_id": game_id})
 
     if doc is None:
+        invites = app["invites"]
+        if game_id in invites:
+            seek_id = invites[game_id].id
+            seek = app["seeks"][seek_id]
+            response = await new_game(app, user, seek_id, game_id)
+            await seek.ws.send_json(response)
+
+            # Put response data to sse subscribers queue
+            channels = app["invite_channels"]
+            for queue in channels:
+                await queue.put(json.dumps({"gameId": game_id}))
+
+            return games[game_id]
         return None
 
     wp, bp = doc["us"]
@@ -107,7 +121,7 @@ async def load_game(app, game_id):
         inc=doc["i"],
         byoyomi_period=int(bool(doc.get("bp"))),
         level=doc.get("x"),
-        rated=bool(doc.get("y")),
+        rated=doc.get("y"),
         chess960=bool(doc.get("z")),
         create=False)
 
@@ -120,7 +134,7 @@ async def load_game(app, game_id):
         mirror = mirror9
         mlist = map(mirror, mlist)
 
-    elif usi_format and (variant == "minishogi" or variant == "kyotoshogi"):
+    elif usi_format and (variant in ("minishogi", "kyotoshogi")):
         mirror = mirror5
         mlist = map(mirror, mlist)
 
@@ -179,7 +193,7 @@ async def load_game(app, game_id):
                     print("IndexError", ply, move, san)
 
         except Exception:
-            log.exception("ERROR: Exception in load_game() %s %s %s %s %s" % (game_id, variant, doc.get("if"), move, list(mlist)))
+            log.exception("ERROR: Exception in load_game() %s %s %s %s %s", game_id, variant, doc.get("if"), move, list(mlist))
             break
 
     if len(game.steps) > 1:
@@ -194,14 +208,18 @@ async def load_game(app, game_id):
 
     try:
         game.wrating = doc["p0"]["e"]
-        game.wrdiff = doc["p0"]["d"]
         game.brating = doc["p1"]["e"]
-        game.brdiff = doc["p1"]["d"]
     except KeyError:
         game.wrating = "1500?"
-        game.wrdiff = "0"
         game.brating = "1500?"
-        game.brdiff = "0"
+
+    try:
+        game.wrdiff = doc["p0"]["d"]
+        game.brdiff = doc["p1"]["d"]
+    except KeyError:
+        game.wrdiff = ""
+        game.brdiff = ""
+
     return game
 
 
@@ -214,19 +232,128 @@ async def draw(games, data, agreement=False):
         await game.save_game()
         return {
             "type": "gameEnd", "status": game.status, "result": game.result, "gameId": data["gameId"], "pgn": game.pgn, "ct": game.crosstable,
-            "rdiffs": {"brdiff": game.brdiff, "wrdiff": game.wrdiff} if game.status > STARTED and game.rated else ""}
+            "rdiffs": {"brdiff": game.brdiff, "wrdiff": game.wrdiff} if game.status > STARTED and game.rated == RATED else ""}
+    response = {"type": "offer", "message": "Pass" if game.variant == "janggi" else "Draw offer sent", "room": "player", "user": ""}
+    game.messages.append(response)
+    return response
+
+
+async def import_game(request):
+    data = await request.post()
+    app = request.app
+    db = app["db"]
+    users = app["users"]
+
+    # print("---IMPORT GAME---")
+    # print(data)
+    # print("-----------------")
+
+    wp = data["White"]
+    bp = data["Black"]
+    if wp in users:
+        wplayer = users[wp]
     else:
-        response = {"type": "offer", "message": "Pass" if game.variant == "janggi" else "Draw offer sent", "room": "player", "user": ""}
-        game.messages.append(response)
-        return response
+        wplayer = User(app, username=wp, anon=True)
+        users[wp] = wplayer
+
+    if bp in users:
+        bplayer = users[bp]
+    else:
+        bplayer = User(app, username=bp, anon=True)
+        users[bp] = bplayer
+
+    variant = data.get("Variant", "chess").lower()
+    initial_fen = data.get("FEN", "")
+    final_fen = data.get("final_fen", "")
+    status = int(data.get("Status", UNKNOWNFINISH))
+    result = data.get("Result", "*")
+    try:
+        date = data.get("Date", "")[0:10]
+        date = map(int, date.split("." if "." in date else "/"))
+        date = datetime(*date)
+    except Exception:
+        log.exception("Date tag parsing failed")
+        date = datetime.utcnow()
+
+    try:
+        minute = False
+        tc = data.get("TimeControl", "").split("+")
+        if tc[0][-1] == "分":
+            minute = True
+            tc[0] = tc[0][:-1]
+        if tc[1][-1] == "秒":
+            tc[1] = tc[1][:-1]
+        tc = list(map(int, tc))
+        base = int((tc[0] / 60) if not minute else tc[0])
+        inc = int(tc[1])
+    except Exception:
+        log.exception("TimeControl tag parsing failed")
+        base, inc = 0, 0
+
+    move_stack = data.get("moves", "").split(" ")
+    moves = encode_moves(
+        map(grand2zero, move_stack) if variant in GRANDS
+        else move_stack, variant)
+
+    new_id = await new_game_id(db)
+    existing = await db.game.find_one({'_id': {'$eq': new_id}})
+    if existing:
+        message = "Failed to create game. Game ID %s allready in mongodb." % new_id
+        log.exception(message)
+        return web.json_response({"error": message})
+
+    try:
+        print(new_id, variant, initial_fen, wplayer, bplayer)
+        new_game = Game(app, new_id, variant, initial_fen, wplayer, bplayer, create=False)
+    except Exception:
+        message = "Creating new Game %s failed!" % new_id
+        log.exception(message)
+        return web.json_response({"error": message})
+
+    document = {
+        "_id": new_id,
+        "us": [wplayer.username, bplayer.username],
+        "v": V2C[variant],
+        "b": base,
+        "i": inc,
+        "bp": new_game.byoyomi_period,
+        "m": moves,
+        "d": date,
+        "f": final_fen,
+        "s": status,
+        "r": R2C[result],
+        "x": new_game.level,
+        "y": IMPORTED,
+        "z": int(new_game.chess960),
+        "by": data["username"],
+    }
+
+    if initial_fen or new_game.chess960:
+        document["if"] = new_game.initial_fen
+
+    if variant.endswith("shogi") or variant == "dobutsu":
+        document["uci"] = 1
+
+    wrating = data.get("WhiteElo")
+    brating = data.get("BlackElo")
+    if wrating:
+        document["p0"] = {"e": wrating}
+    if brating:
+        document["p1"] = {"e": brating}
+
+    print(document)
+    result = await db.game.insert_one(document)
+    print("db insert IMPORTED game result %s" % repr(result.inserted_id))
+
+    return web.json_response({"gameId": new_id})
 
 
-async def new_game(app, user, seek_id):
+async def new_game(app, user, seek_id, new_id=None):
     db = app["db"]
     games = app["games"]
     seeks = app["seeks"]
     seek = seeks[seek_id]
-    log.info("+++ Seek %s accepted by %s FEN:%s 960:%s" % (seek_id, user.username, seek.fen, seek.chess960))
+    log.info("+++ Seek %s accepted by %s FEN:%s 960:%s", seek_id, user.username, seek.fen, seek.chess960)
 
     fen_valid = True
     if seek.fen:
@@ -246,13 +373,12 @@ async def new_game(app, user, seek_id):
         wplayer = seek.user if seek.color == "w" else user
         bplayer = seek.user if seek.color == "b" else user
 
-    new_id = "".join(random.choice(string.ascii_letters + string.digits) for x in range(8))
-    existing = await db.game.find_one({'_id': {'$eq': new_id}})
-    if existing:
-        message = "Failed to create game. Game ID %s allready in mongodb." % new_id
-        log.debug(message)
-        remove_seek(seeks, seek)
-        return {"type": "error", "message": message}
+    if new_id is not None:
+        # game invitation
+        del app["invites"][new_id]
+    else:
+        new_id = await new_game_id(db)
+
     # print("new_game", new_id, seek.variant, seek.fen, wplayer, bplayer, seek.base, seek.inc, seek.level, seek.rated, seek.chess960)
     try:
         new_game = Game(
@@ -261,14 +387,14 @@ async def new_game(app, user, seek_id):
             inc=seek.inc,
             byoyomi_period=seek.byoyomi_period,
             level=seek.level,
-            rated=seek.rated,
+            rated=RATED if seek.rated else CASUAL,
             chess960=seek.chess960,
             create=True)
     except Exception:
-        log.error("Creating new game %s failed! %s 960:%s FEN:%s %s vs %s" % (new_id, seek.variant, seek.chess960, seek.fen, wplayer, bplayer))
+        log.exception("Creating new game %s failed! %s 960:%s FEN:%s %s vs %s", new_id, seek.variant, seek.chess960, seek.fen, wplayer, bplayer)
         remove_seek(seeks, seek)
         return {"type": "error", "message": "Failed to create game"}
-    games[new_game.id] = new_game
+    games[new_id] = new_game
 
     remove_seek(seeks, seek)
 
@@ -287,7 +413,7 @@ async def new_game(app, user, seek_id):
         "s": new_game.status,
         "r": R2C["*"],
         "x": seek.level,
-        "y": int(seek.rated),
+        "y": RATED if seek.rated else CASUAL,
         "z": int(seek.chess960),
     }
 
@@ -340,7 +466,6 @@ def get_dests(board):
 
 
 async def analysis_move(app, user, game, move, fen, ply):
-    assert move
     invalid_move = False
 
     board = FairyBoard(game.variant, fen, game.chess960)
@@ -351,9 +476,9 @@ async def analysis_move(app, user, game, move, fen, ply):
         board.push(move)
         dests, promotions = get_dests(board)
         check = board.is_checked()
-    except Exception as e:
+    except Exception:
         invalid_move = True
-        log.error("!!! analysis_move() exception occured: %s" % type(e))
+        log.exception("!!! analysis_move() exception occured")
 
     if invalid_move:
         analysis_board_response = game.get_board(full=True)
@@ -374,7 +499,6 @@ async def analysis_move(app, user, game, move, fen, ply):
 
 
 async def play_move(app, user, game, move, clocks=None, ply=None):
-    assert move
     gameId = game.id
     users = app["users"]
     invalid_move = False
@@ -385,7 +509,7 @@ async def play_move(app, user, game, move, clocks=None, ply=None):
             await game.play_move(move, clocks, ply)
         except SystemError:
             invalid_move = True
-            log.error("Game %s aborted because invalid move %s by %s !!!" % (gameId, move, user.username))
+            log.exception("Game %s aborted because invalid move %s by %s !!!", gameId, move, user.username)
             game.status = INVALIDMOVE
             game.result = "0-1" if user.username == game.wplayer.username else "1-0"
 
@@ -414,12 +538,12 @@ async def play_move(app, user, game, move, clocks=None, ply=None):
                 response = {"type": "gameEnd", "status": game.status, "result": game.result, "gameId": game.id, "pgn": game.pgn}
                 await opp_ws.send_json(response)
         except KeyError:
-            log.error("Move %s can't send to %s. Game %s was removed from game_sockets !!!" % (move, user.username, gameId))
+            log.exception("Move %s can't send to %s. Game %s was removed from game_sockets !!!", move, user.username, gameId)
         except ConnectionResetError:
-            log.error("Move %s can't send to %s in game %s. User disconnected !!!" % (move, user.username, gameId))
+            log.exception("Move %s can't send to %s in game %s. User disconnected !!!", move, user.username, gameId)
 
     if not invalid_move:
-        await round_broadcast(game, users, board_response, channels=app["channels"])
+        await round_broadcast(game, users, board_response, channels=app["game_channels"])
 
 
 def pgn(doc):
@@ -449,7 +573,7 @@ def pgn(doc):
         mirror = mirror9
         mlist = list(map(mirror, mlist))
 
-    elif usi_format and (variant == "minishogi" or variant == "kyotoshogi"):
+    elif usi_format and (variant in ("minishogi", "kyotoshogi")):
         mirror = mirror5
         mlist = list(map(mirror, mlist))
 
@@ -464,7 +588,7 @@ def pgn(doc):
         try:
             mlist = sf.get_san_moves(variant, fen, mlist[:-1], chess960, sf.NOTATION_SAN)
         except Exception:
-            log.error("%s %s %s movelist contains invalid move" % (doc["_id"], variant, doc["d"]))
+            log.exception("%s %s %s movelist contains invalid move", doc["_id"], variant, doc["d"])
             mlist = mlist[0]
 
     moves = " ".join((move if ind % 2 == 1 else "%s. %s" % (((ind + 1) // 2) + 1, move) for ind, move in enumerate(mlist)))
@@ -479,7 +603,7 @@ def pgn(doc):
         doc["us"][0],
         doc["us"][1],
         C2R[doc["r"]],
-        doc["b"] * 60,
+        int(doc["b"] * 60),
         doc["i"],
         doc["p0"]["e"] if "p0" in doc else "?",
         doc["p1"]["e"] if "p1" in doc else "?",
@@ -531,7 +655,7 @@ def sanitize_fen(variant, initial_fen, chess960):
 
     # Castling rights (and piece virginity) check
     invalid4 = False
-    if variant == "seirawan" or variant == "shouse":
+    if variant in ("seirawan", "shouse"):
         invalid4 = len(init) > 2 and any((c not in "KQABCDEFGHkqabcdefgh-" for c in init[2]))
     elif chess960:
         if all((c in "KQkq-" for c in init[2])):
@@ -542,7 +666,7 @@ def sanitize_fen(variant, initial_fen, chess960):
         invalid4 = len(init) > 2 and any((c not in start[2] + "-" for c in init[2]))
 
     # Castling right need rooks and king placed in starting square
-    if (not invalid2) and (not invalid4):
+    if (not invalid2) and (not invalid4) and not (chess960 and (variant in ("seirawan", "shouse"))):
         rows = init[0].split("/")
         backRankB = rows[1] if (variant == 'shako') else rows[0]
         backRankW = rows[-2] if (variant == 'shako') else rows[-1]
@@ -574,8 +698,7 @@ def sanitize_fen(variant, initial_fen, chess960):
         print(invalid0, invalid1, invalid2, invalid3, invalid4, invalid5, invalid6)
         sanitized_fen = start_fen
         return False, start_fen
-    else:
-        return True, sanitized_fen
+    return True, sanitized_fen
 
 
 def online_count(users):

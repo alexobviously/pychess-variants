@@ -7,9 +7,14 @@ from datetime import datetime
 from const import VARIANTS
 from broadcast import lobby_broadcast
 from glicko2.glicko2 import gl2, DEFAULT_PERF
+from login import RESERVED_USERS
 from seek import get_seeks
 
 log = logging.getLogger(__name__)
+
+SILENCE = 10 * 60
+
+ANON_TIMEOUT = 10 * 60
 
 
 class MissingRatingsException(Exception):
@@ -58,12 +63,32 @@ class User:
         # last game played
         self.tv = None
 
+        # lobby chat spammer time out (10 min)
+        self.silence = 0
+
+        # purge inactive anon users after ANON_TIMEOUT sec
+        if self.anon and self.username not in RESERVED_USERS:
+            loop = asyncio.get_event_loop()
+            loop.create_task(self.remove())
+
+    async def remove(self):
+        while True:
+            await asyncio.sleep(ANON_TIMEOUT)
+            if not self.online():
+                # give them a second chance
+                await asyncio.sleep(3)
+                if not self.online():
+                    try:
+                        del self.app["users"][self.username]
+                    except KeyError:
+                        log.error("Failed to del %s from users", self.username)
+                    break
+
     def online(self, username=None):
         if username is None:
             if self.bot:
                 return self.bot_online
-            else:
-                return len(self.game_sockets) > 0 or len(self.lobby_sockets) > 0
+            return len(self.game_sockets) > 0 or len(self.lobby_sockets) > 0
         else:
             return username == self.username or self.online()
 
@@ -72,10 +97,19 @@ class User:
             gl = self.perfs[variant + ("960" if chess960 else "")]["gl"]
             la = self.perfs[variant + ("960" if chess960 else "")]["la"]
             return gl2.create_rating(gl["r"], gl["d"], gl["v"], la)
-        else:
-            rating = gl2.create_rating()
-            self.perfs[variant + ("960" if chess960 else "")] = DEFAULT_PERF
-            return rating
+        rating = gl2.create_rating()
+        self.perfs[variant + ("960" if chess960 else "")] = DEFAULT_PERF
+        return rating
+
+    def set_silence(self):
+        self.silence += SILENCE
+
+        async def silencio():
+            await asyncio.sleep(SILENCE)
+            self.silence -= SILENCE
+
+        loop = asyncio.get_event_loop()
+        loop.create_task(silencio())
 
     async def set_rating(self, variant, chess960, rating):
         if self.anon:
@@ -102,7 +136,10 @@ class User:
         has_seek = len(self.seeks) > 0
         if has_seek:
             for seek in self.seeks:
-                del seeks[seek]
+                game_id = self.seeks[seek].game_id
+                # preserve invites (seek with game_id)!
+                if game_id is None:
+                    del seeks[seek]
             self.seeks.clear()
 
             await lobby_broadcast(sockets, get_seeks(seeks))

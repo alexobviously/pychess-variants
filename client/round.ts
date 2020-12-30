@@ -5,7 +5,8 @@ import { _ } from './i18n';
 import RoundController from './roundCtrl';
 import { VARIANTS } from './chess';
 import { timeago, renderTimeago } from './datetime';
-import { renderRdiff } from './profile';
+import { aiLevel, gameType, renderRdiff } from './profile';
+import { timeControlStr } from "./view";
 
 function runGround(vnode: VNode, model) {
     const el = vnode.elm as HTMLElement;
@@ -29,7 +30,7 @@ export function roundView(model): VNode[] {
             h('div.info0.icon', { attrs: { "data-icon": dataIcon } }, [
                 h('div.info2', [
                     h('div.tc', [
-                        model["base"] + "+" + (model["byo"] > 1 ? model["byo"] + "x" : "") + model["inc"] + (model["byo"] > 0 ? "(b)" : "") + " • " + ((model["rated"] === 'True') ? _("Rated") : _("Casual")) + " • ",
+                        timeControlStr(model["base"], model["inc"], model["byo"]) + " • " + gameType(model["rated"]) + " • ",
                         h('a.user-link', {
                             attrs: {
                                 target: '_blank',
@@ -66,7 +67,7 @@ export function roundView(model): VNode[] {
                 h('player', playerInfo(model, 'b', null)),
             ]),
         ]),
-        h('div.roundchat#roundchat'),
+        h('div#roundchat'),
     ]),
         h('div', [
             h('div#pocket-wrapper0', [
@@ -86,7 +87,7 @@ export function roundView(model): VNode[] {
         ]),
         h('aside.sidebar-second', [
             h('div#counting'),
-            h('div#pocket-wrapper0', [
+            h('div', [
                 h('div.' + variant.piece + '.' + model["variant"], [
                     h('div.cg-wrap.pocket', [
                         h('div#pocket0'),
@@ -114,7 +115,7 @@ export function roundView(model): VNode[] {
                 h('div#clock1'),
                 h('div#misc-info1'),
             ]),
-            h('div#pocket-wrapper1', [
+            h('div', [
                 h('div.' + variant.piece + '.' + model["variant"], [
                     h('div.cg-wrap.pocket', [
                         h('div#pocket1'),
@@ -146,7 +147,7 @@ function playerInfo(model, color: string, rdiff: number | null) {
 
     return h('a.user-link', { attrs: { href: '/@/' + username } }, [
         h('player-title', " " + title + " "),
-        username + ((title === "BOT" && level >= 0) ? _(' level ') + level: "") + " (" + rating + ") ",
+        username + aiLevel(title, level) + " (" + rating + ") ",
         rdiff === null ? h('rdiff#' + color + 'rdiff') : renderRdiff(rdiff),
     ]);
 }

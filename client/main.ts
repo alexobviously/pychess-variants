@@ -13,14 +13,21 @@ import { aboutView } from './about';
 import { settingsView } from './settingsView';
 import { lobbyView } from './lobby';
 import { roundView } from './round';
+import { inviteView } from './invite';
 import { renderGames } from './games';
 import { editorView } from './editor';
 import { analysisView } from './analysis';
 import { profileView } from './profile';
+import { pasteView } from './paste';
 import { statsView } from './stats';
 import { sound, volumeSettings, soundThemeSettings } from './sound';
 import { debounce, getCookie } from './document';
 import { backgroundSettings } from './background';
+
+// redirect to correct URL
+if (window.location.href.includes('heroku')) {
+    window.location.assign('https://www.pychess.org/');
+}
 
 const model = {};
 
@@ -38,6 +45,7 @@ export function view(el, model): VNode {
     model["level"] = el.getAttribute("data-level");
     model["username"] = user !== "" ? user : el.getAttribute("data-user");
     model["gameId"] = el.getAttribute("data-gameid");
+    model["inviter"] = el.getAttribute("data-inviter");
     model["ply"] = el.getAttribute("data-ply");
     model["wplayer"] = el.getAttribute("data-wplayer");
     model["wtitle"] = el.getAttribute("data-wtitle");
@@ -61,16 +69,20 @@ export function view(el, model): VNode {
         return h('div#main-wrap', aboutView());
     case 'level8win':
     case 'profile':
-        return h('div', profileView(model));
+        return h('div#profile', profileView(model));
     case 'tv':
     case 'round':
         return h('div#main-wrap', [h('main.round', roundView(model))]);
     case 'analysis':
         return h('div#main-wrap', [h('main.round', analysisView(model))]);
+    case 'invite':
+        return h('div#main-wrap', inviteView(model));
     case 'editor':
         return h('div#main-wrap', [h('main.round', editorView(model))]);
     case 'games':
         return h('div', renderGames());
+    case 'paste':
+        return h('div#main-wrap', pasteView(model));
     case 'stats':
         return h('div#stats', statsView());
     case 'thanks':

@@ -6,6 +6,7 @@ import Sockette from 'sockette';
 
 import { init } from 'snabbdom';
 import { h } from 'snabbdom/h';
+import { VNode } from 'snabbdom/vnode';
 import klass from 'snabbdom/modules/class';
 import attributes from 'snabbdom/modules/attributes';
 import properties from 'snabbdom/modules/props';
@@ -14,24 +15,23 @@ import listeners from 'snabbdom/modules/eventlisteners';
 import { Chessground } from 'chessgroundx';
 import { Api } from 'chessgroundx/api';
 import { key2pos, pos2key } from 'chessgroundx/util';
-import { Color, Dests, PiecesDiff, Role, Key, Pos, Piece, Variant, Notation } from 'chessgroundx/types';
+import { Color, Dests, Pieces, PiecesDiff, Role, Key, Pos, Piece, Variant, Notation, SetPremoveMetadata } from 'chessgroundx/types';
 import { DrawShape } from 'chessgroundx/draw';
 
+import { JSONObject } from './types';
 import { _ } from './i18n';
 import { Gating } from './gating';
 import { Promotion } from './promotion';
-import { dropIsValid, pocketView, updatePockets } from './pocket';
+import { dropIsValid, pocketView, updatePockets, Pockets } from './pocket';
 import { sound } from './sound';
 import { roleToSan, grand2zero, zero2grand, VARIANTS, getPockets, isVariantClass, sanToRole } from './chess';
 import { crosstableView } from './crosstable';
 import { chatMessage, chatView } from './chat';
 import { createMovelistButtons, updateMovelist, selectMove, activatePlyVari } from './movelist';
 import { povChances } from './winningChances';
-import resizeHandle from './resize';
-//import { result } from './profile';
 import { copyTextToClipboard } from './clipboard';
 import { analysisChart } from './chart';
-import { copyBoardToPNG } from './png'; 
+import { copyBoardToPNG } from './png';
 import { updateCount, updatePoint } from './info';
 import { boardSettings } from './boardSettings';
 import { variantsIni } from './variantsIni';
@@ -77,27 +77,25 @@ export default class AnalysisController {
     gameId: string;
     variant: string;
     hasPockets: boolean;
-    pockets: any;
-    vpocket0: any;
-    vpocket1: any;
-    vplayer0: any;
-    vplayer1: any;
-    vgate0: any;
-    vgate1: any;
-    vpgn: any;
-    vscore: any;
-    vinfo: any;
-    vpv: any;
-    vmovelist: any;
-    gameControls: any;
-    moveControls: any;
-    gating: any;
-    promotion: any;
+    pockets: Pockets;
+    vpocket0: VNode;
+    vpocket1: VNode;
+    vplayer0: VNode;
+    vplayer1: VNode;
+    vpgn: VNode;
+    vscore: VNode | HTMLElement;
+    vinfo: VNode | HTMLElement;
+    vpv: VNode | HTMLElement;
+    vmovelist: VNode | HTMLElement;
+    gameControls: VNode;
+    moveControls: VNode;
+    gating: Gating;
+    promotion: Promotion;
     dests: Dests;
     promotions: string[];
     lastmove: Key[];
-    premove: any;
-    predrop: any;
+    premove: {orig: Key, dest: Key, metadata?: SetPremoveMetadata} | null;
+    predrop: {role: Role, key: Key} | null;
     preaction: boolean;
     result: string;
     flip: boolean;
@@ -116,17 +114,18 @@ export default class AnalysisController {
     clickDropEnabled: boolean;
     animation: boolean;
     showDests: boolean;
-    analysisChart: any;
-    ctableContainer: any;
+    analysisChart;
+    ctableContainer: VNode | HTMLElement;
     localEngine: boolean;
     localAnalysis: boolean;
-    ffish: any;
-    ffishBoard: any;
+    ffish;
+    ffishBoard;
     maxDepth: number;
     isAnalysisBoard: boolean;
     isEngineReady: boolean;
     notation: Notation;
-    notationAsObject: any;
+    notationAsObject;
+    prevPieces: Pieces;
     committedGates: any;
     hasCommittedGates: boolean;
 
@@ -245,9 +244,6 @@ export default class AnalysisController {
             orientation: this.mycolor,
             turnColor: this.turnColor,
             animation: { enabled: this.animation },
-            events: {
-                insert(elements) {resizeHandle(elements);}
-            }
         });
 
         this.chessground.set({
@@ -332,7 +328,7 @@ export default class AnalysisController {
         let passKey = 'z0';
         const pieces = this.chessground.state.pieces;
         const dests = this.chessground.state.movable.dests;
-        for (let key in pieces) {
+        for (const key in pieces) {
             if (pieces[key]!.role === 'king' && pieces[key]!.color === this.turnColor) {
                 if ((key in dests!) && (dests![key].indexOf(key as Key) >= 0)) passKey = key;
             }
@@ -455,8 +451,9 @@ export default class AnalysisController {
             updateMovelist(this);
 
             if (this.steps[0].analysis !== undefined) {
+                this.vinfo = patch(this.vinfo, h('info#info', '-'));
                 this.drawAnalysisChart(false);
-            };
+            }
         } else {
             if (msg.ply === this.steps.length) {
                 const step = {
@@ -512,7 +509,7 @@ export default class AnalysisController {
                 lastMove: lastMove,
             });
             if (pocketsChanged) updatePockets(this, this.vpocket0, this.vpocket1);
-        };
+        }
         if (this.model["ply"]) {
             this.ply = parseInt(this.model["ply"])
             selectMove(this, this.ply);
@@ -555,16 +552,22 @@ export default class AnalysisController {
                         if (this.model.variant === 'chess' || availableVariants.includes(this.model.variant)) {
                             this.ffishBoard = new this.ffish.Board(this.variant, this.fullfen, this.model.chess960 === 'True');
                             this.dests = this.getDests();
+                            this.chessground.set({ movable: { color: this.turnColor, dests: this.dests } });
                         } else {
                             console.log("Selected variant is not supported by ffish.js");
                         }
                     }
                 });
-                if (this.model.variant === 'chess' || line.includes(this.model.variant)) {
+
+                // TODO: enable S-chess960 when stockfish.wasm catches upstream Fairy-Stockfish
+                if ((this.model.variant === 'chess' || line.includes(this.model.variant)) &&
+                    !(this.model.variant === 'seirawan' && this.model.chess960 === 'True')) {
                     this.localEngine = true;
                     patch(document.getElementById('input') as HTMLElement, h('input#input', {attrs: {disabled: false}}));
                 } else {
-                    alert(_("Selected variant %1 is not supported by stockfish.wasm", this.model.variant));
+                    const v = this.model.variant + ((this.model.chess960 === 'True') ? '960' : '');
+                    const title = _("Selected variant %1 is not supported by stockfish.wasm", v);
+                    patch(document.getElementById('slider') as HTMLElement, h('span.sw-slider', {attrs: {title: title}}));
                 }
             }
         }
@@ -638,6 +641,7 @@ export default class AnalysisController {
                 }
             }
         }
+
         if (ceval?.p !== undefined) {
             let pv_move = ceval["m"].split(" ")[0];
             if (isVariantClass(this.variant, "tenRanks")) pv_move = grand2zero(pv_move);
@@ -663,9 +667,9 @@ export default class AnalysisController {
                     const d = pv_move.slice(2, 4);
                     shapes0 = [{ orig: o, dest: d, brush: 'paleGreen', piece: undefined },];
                 }
-            };
+            }
             this.vscore = patch(this.vscore, h('score#score', scoreStr));
-            let info = [h('span', _('Depth') + ' ' + String(ceval.d) + '/' + this.maxDepth)];
+            const info = [h('span', _('Depth') + ' ' + String(ceval.d) + '/' + this.maxDepth)];
             if (ceval.k) {
                 if (ceval.d === this.maxDepth && this.maxDepth !== 99) {
                     info.push(
@@ -680,14 +684,20 @@ export default class AnalysisController {
             }
             this.vinfo = patch(this.vinfo, h('info#info', info));
             document.documentElement.style.setProperty('--pvheight', '28px');
-            this.vpv = patch(this.vpv, h('div#pv', [h('pvline', ceval.p !== undefined ? ceval.p : ceval.m)]));
+            let pvSan = ceval.p;
+            if (this.ffishBoard !== null) {
+                try {
+                    pvSan = this.ffishBoard.variationSan(ceval.p, this.notationAsObject);
+                } catch (error) {
+                    pvSan = ceval.p
+                }
+            }
+            this.vpv = patch(this.vpv, h('div#pv', [h('pvline', ceval.p !== undefined ? pvSan : ceval.m)]));
         } else {
             this.vscore = patch(this.vscore, h('score#score', ''));
             this.vinfo = patch(this.vinfo, h('info#info', _('in local browser')));
-            if (this.localAnalysis) {
-                document.documentElement.style.setProperty('--pvheight', '28px');
-                this.vpv = patch(this.vpv, h('div#pv', [h('pvline', '-')]));
-            }
+            document.documentElement.style.setProperty('--pvheight', '0px');
+            this.vpv = patch(this.vpv, h('div#pv'));
         }
 
         // console.log(shapes0);
@@ -769,7 +779,7 @@ export default class AnalysisController {
 
     // When we are moving inside a variation move list
     // then plyVari > 0 and ply is the index inside vari movelist
-    goPly = (ply, plyVari: number = 0) => {
+    goPly = (ply, plyVari = 0) => {
         if (this.localAnalysis) {
             this.engineStop();
             // Go back to the main line
@@ -799,9 +809,6 @@ export default class AnalysisController {
             check: step.check,
             lastMove: move,
         });
-
-        this.drawEval(step.ceval, step.scoreStr, step.turnColor);
-        this.drawServerEval(ply, step.scoreStr);
 
         this.fullfen = step.fen;
 
@@ -848,6 +855,9 @@ export default class AnalysisController {
             this.dests = this.getDests();
         }
 
+        this.drawEval(step.ceval, step.scoreStr, step.turnColor);
+        this.drawServerEval(ply, step.scoreStr);
+
         // TODO: multi PV
         this.maxDepth = maxDepth;
         if (this.localAnalysis) this.engineGo();
@@ -862,7 +872,7 @@ export default class AnalysisController {
         window.history.replaceState({}, this.model['title'], this.model["home"] + '/' + this.gameId + '?ply=' + ply.toString());
     }
 
-    private doSend = (message) => {
+    private doSend = (message: JSONObject) => {
         // console.log("---> doSend():", message);
         this.sock.send(JSON.stringify(message));
     }
@@ -901,18 +911,18 @@ export default class AnalysisController {
         }
     }
 
-    private getPgn = (idxInVari : number = 0) => {
-        let moves : string[] = [];
+    private getPgn = (idxInVari  = 0) => {
+        const moves : string[] = [];
         for (let ply = 1; ply <= this.ply; ply++) {
             const moveCounter = (ply % 2 !== 0) ? (ply + 1) / 2 + '.' : '';
             if (this.steps[ply]['vari'] !== undefined && this.plyVari > 0) {
                 const variMoves = this.steps[ply]['vari'];
                 for (let idx = 0; idx <= idxInVari; idx++) {
-                    moves.push(moveCounter + variMoves[idx]['san']);
+                    moves.push(moveCounter + variMoves[idx]['sanSAN']);
                 }
                 break;
             }
-            moves.push(moveCounter + this.steps[ply]['san']);
+            moves.push(moveCounter + this.steps[ply]['sanSAN']);
         }
         return moves.join(' ');
     }
@@ -920,16 +930,23 @@ export default class AnalysisController {
     private sendMove = (orig, dest, promo) => {
         const uci_move = orig + dest + promo;
         const move = (isVariantClass(this.variant, 'tenRanks')) ? zero2grand(uci_move) : uci_move;
-        const san = this.ffishBoard.sanMove(move);
-        //console.log('sendMove()', move, san);
+        const san = this.ffishBoard.sanMove(move, this.notationAsObject);
+        const sanSAN = this.ffishBoard.sanMove(move);
+        // console.log('sendMove()', move, san);
         // Instead of sending moves to the server we can get new FEN and dests from ffishjs
         this.ffishBoard.push(move);
         this.dests = this.getDests();
+
+        // We can't use ffishBoard.gamePly() to determine newply because it returns +1 more
+        // when new this.ffish.Board() initial FEN moving color was "b"
+        const moves = this.ffishBoard.moveStack().split(' ');
+        const newPly = moves.length;
+
         const msg = {
             gameId: this.gameId,
             fen: this.ffishBoard.fen(),
-            ply: this.ffishBoard.gamePly(),
-            lastMove: uci_move,
+            ply: newPly,
+            lastMove: move,
             dests: this.dests,
             promo: this.promotions,
             bikjang: this.ffishBoard.isBikjang(),
@@ -943,28 +960,33 @@ export default class AnalysisController {
             'check': msg.check,
             'turnColor': this.turnColor,
             'san': san,
+            'sanSAN': sanSAN,
             };
 
         // New main line move
-        if (msg.ply === this.steps.length && this.plyVari === 0) {
+        if (this.ffishBoard.gamePly() === this.steps.length && this.plyVari === 0) {
             this.steps.push(step);
-            this.ply = msg.ply
+            this.ply = this.ffishBoard.gamePly()
             updateMovelist(this);
 
             this.checkStatus(msg);
         // variation move
         } else {
-            const moves = this.ffishBoard.moveStack();
-
             // new variation starts
-            if (!moves.includes(' ')) {
+            if (newPly === 1) {
                 if (msg.lastMove === this.steps[this.ply].move) {
                     // existing main line played
                     selectMove(this, this.ply);
                     return;
                 }
-                this.plyVari = this.ply;
-                this.steps[this.plyVari]['vari'] = [];
+                if (this.steps[this.plyVari]['vari'] === undefined || msg.ply === this.steps[this.plyVari]['vari'].length) {
+                    // continuing the variation
+                    this.plyVari = this.ffishBoard.gamePly();
+                    this.steps[this.plyVari]['vari'] = [];
+                } else {
+                    // variation in the variation: drop old moves
+                    this.steps[this.plyVari]['vari'] = this.steps[this.plyVari]['vari'].slice(0, this.ffishBoard.gamePly() - this.plyVari);
+                }
             }
             this.steps[this.plyVari]['vari'].push(step);
 
@@ -1043,7 +1065,7 @@ export default class AnalysisController {
             diff[pos2key(pawnPos, geom)] = undefined;
             this.chessground.setPieces(diff);
             meta.captured = {role: "pawn"};
-        };
+        }
         // increase pocket count
         if (isVariantClass(this.variant, 'drop') && meta.captured) {
             let role = meta.captured.role
@@ -1058,7 +1080,7 @@ export default class AnalysisController {
                 this.pockets[1][role]++;
                 this.vpocket1 = patch(this.vpocket1, pocketView(this, this.turnColor, "bottom"));
             }
-        };
+        }
 
         //  gating elephant/hawk
         if (isVariantClass(this.variant, 'gate')) {
@@ -1066,7 +1088,7 @@ export default class AnalysisController {
         } else {
             if (!this.promotion.start(moved.role, orig, dest)) this.sendMove(orig, dest, '');
         this.preaction = false;
-        };
+        }
     }
 
     private onUserDrop = (role, dest, meta) => {
@@ -1084,7 +1106,7 @@ export default class AnalysisController {
                 this.vpocket1 = patch(this.vpocket1, pocketView(this, this.turnColor, "bottom"));
             }
             if (this.variant === "kyotoshogi") {
-                if (!this.promotion.start(role, 'z0', dest, undefined)) this.sendMove(roleToSan[role] + "@", dest, '');
+                if (!this.promotion.start(role, 'z0', dest)) this.sendMove(roleToSan[role] + "@", dest, '');
             } else {
                 this.sendMove(roleToSan[role] + "@", dest, '')
             }
@@ -1110,10 +1132,9 @@ export default class AnalysisController {
 
     private onSelect = () => {
         return (key) => {
-            //console.log("ground.onSelect()", key, this.chessground.state);
-            //console.log("dests", this.chessground.state.movable.dests);
-            // If drop selection was set dropDests we have to restore dests here
             if (this.chessground.state.movable.dests === undefined) return;
+
+            // If drop selection was set dropDests we have to restore dests here
             if (key != 'z0' && 'z0' in this.chessground.state.movable.dests) {
                 if (this.clickDropEnabled && this.clickDrop !== undefined && dropIsValid(this.dests, this.clickDrop.role, key)) {
                     this.chessground.newPiece(this.clickDrop, key);
@@ -1122,9 +1143,16 @@ export default class AnalysisController {
                 this.clickDrop = undefined;
                 //cancelDropMode(this.chessground.state);
                 this.chessground.set({ movable: { dests: this.dests }});
-            };
-            // Sittuyin in place promotion on Ctrl+click
-            if (this.chessground.state.stats.ctrlKey && 
+            }
+
+            // Save state.pieces to help recognise 960 castling (king takes rook) moves
+            // Shouldn't this be implemented in chessground instead?
+            if (this.model.chess960 === 'True' && isVariantClass(this.variant, 'gate')) {
+                this.prevPieces = Object.assign({}, this.chessground.state.pieces);
+            }
+
+            // Janggi pass and Sittuyin in place promotion on Ctrl+click
+            if (this.chessground.state.stats.ctrlKey &&
                 (key in this.chessground.state.movable.dests) &&
                 (this.chessground.state.movable.dests[key].indexOf(key) >= 0)
                 ) {
@@ -1142,7 +1170,7 @@ export default class AnalysisController {
                 } else if (isVariantClass(this.variant, 'pass') && piece!.role === 'king') {
                     this.pass();
                 }
-            };
+            }
         }
     }
 

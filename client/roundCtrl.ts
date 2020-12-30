@@ -2,6 +2,7 @@ import Sockette from 'sockette';
 
 import { init } from 'snabbdom';
 import { h } from 'snabbdom/h';
+import { VNode } from 'snabbdom/vnode';
 import klass from 'snabbdom/modules/class';
 import attributes from 'snabbdom/modules/attributes';
 import properties from 'snabbdom/modules/props';
@@ -10,20 +11,20 @@ import listeners from 'snabbdom/modules/eventlisteners';
 import { key2pos, pos2key } from 'chessgroundx/util';
 import { Chessground } from 'chessgroundx';
 import { Api } from 'chessgroundx/api';
-import { Color, Dests, PiecesDiff, Role, Key, Pos, Piece, Variant, Notation } from 'chessgroundx/types';
+import { Color, Dests, Pieces, PiecesDiff, Role, Key, Pos, Piece, Variant, Notation, SetPremoveMetadata } from 'chessgroundx/types';
 
+import { JSONObject } from './types';
 import { _ } from './i18n';
 import { boardSettings } from './boardSettings';
 import { Clock } from './clock';
 import { Gating } from './gating';
 import { Promotion } from './promotion';
-import { dropIsValid, pocketView, updatePockets, updateCommittedGates } from './pocket';
+import { dropIsValid, pocketView, updatePockets, Pockets, updateCommittedGates } from './pocket';
 import { sound } from './sound';
 import { roleToSan, grand2zero, zero2grand, VARIANTS, getPockets, getCounting, isVariantClass, isHandicap, splitMusketeerFen, rolesVariants } from './chess';
 import { crosstableView } from './crosstable';
 import { chatMessage, chatView } from './chat';
 import { createMovelistButtons, updateMovelist, selectMove } from './movelist';
-import resizeHandle from './resize';
 import { renderRdiff, result } from './profile'
 import { player } from './player';
 import { updateCount, updatePoint } from './info';
@@ -44,33 +45,31 @@ export default class RoundController {
     mycolor: Color;
     oppcolor: Color;
     turnColor: Color;
-    clocks: any;
-    clocktimes: any;
+    clocks: [Clock, Clock];
+    clocktimes;
     abortable: boolean;
     gameId: string;
     variant: string;
     hasPockets: boolean;
-    pockets: any;
-    vpocket0: any;
-    vpocket1: any;
-    vplayer0: any;
-    vplayer1: any;
-    vgate0: any;
-    vgate1: any;
-    vmiscInfoW: any;
-    vmiscInfoB: any;
-    vpng: any;
-    vmovelist: any;
-    gameControls: any;
-    moveControls: any;
-    ctableContainer: any;
-    gating: any;
-    promotion: any;
+    pockets: Pockets;
+    vpocket0: VNode;
+    vpocket1: VNode;
+    vplayer0: VNode;
+    vplayer1: VNode;
+    vmiscInfoW: VNode;
+    vmiscInfoB: VNode;
+    vpng: VNode;
+    vmovelist: VNode | HTMLElement;
+    gameControls: VNode;
+    moveControls: VNode;
+    ctableContainer: VNode | HTMLElement;
+    gating: Gating;
+    promotion: Promotion;
     dests: Dests;
     promotions: string[];
     lastmove: Key[];
-    premove: any;
-    predrop: any;
+    premove: {orig: Key, dest: Key, metadata?: SetPremoveMetadata} | null;
+    predrop: {role: Role, key: Key} | null;
     preaction: boolean;
     result: string;
     flip: boolean;
@@ -92,6 +91,7 @@ export default class RoundController {
     handicap: boolean;
     autoqueen: boolean;
     setupFen: string;
+    prevPieces: Pieces;
     committedGates: any;
     hasCommittedGates: boolean;
 
@@ -214,9 +214,6 @@ export default class RoundController {
             turnColor: this.turnColor,
             autoCastle: this.variant !== 'cambodian',
             animation: { enabled: this.animation },
-            events: {
-                insert(elements) {resizeHandle(elements);}
-            }
         });
 
         if (this.spectator) {
@@ -260,7 +257,7 @@ export default class RoundController {
                     select: this.onSelect(),
                 }
             });
-        };
+        }
 
         this.gating = new Gating(this);
         this.promotion = new Promotion(this);
@@ -302,7 +299,7 @@ export default class RoundController {
             chatMessage('', oppName + _(' +15 seconds'), "roundchat");
         }
 
-        if (!this.spectator) {
+        if (!this.spectator && model["rated"] != '1' && this.model['wtitle'] !== 'BOT' && this.model['btitle'] !== 'BOT') {
             const container = document.getElementById('more-time') as HTMLElement;
             patch(container, h('div#more-time', [
                 h('button.icon.icon-plus-square', {
@@ -419,7 +416,7 @@ export default class RoundController {
         let passKey = 'z0';
         const pieces = this.chessground.state.pieces;
         const dests = this.chessground.state.movable.dests;
-        for (let key in pieces) {
+        for (const key in pieces) {
             if (pieces[key]!.role === 'king' && pieces[key]!.color === this.turnColor) {
                 if ((key in dests!) && (dests![key].indexOf(key as Key) >= 0)) passKey = key;
             }
@@ -592,6 +589,8 @@ export default class RoundController {
     private onMsgBoard = (msg) => {
         if (msg.gameId !== this.gameId) return;
 
+        // prevent sending premove/predrop when (auto)reconnecting websocked asks server to (re)sends the same board to us
+        if (!this.spectator && msg.ply === this.ply) return;
         const pocketsChanged = this.hasPockets && (getPockets(this.fullfen) !== getPockets(msg.fen));
 
         // console.log("got board msg:", msg);
@@ -601,7 +600,7 @@ export default class RoundController {
         this.fullfen = msg.fen;
 
         if (isVariantClass(this.variant, 'gate')) {
-            // When castling with gating is possible 
+            // When castling with gating is possible
             // e1g1, e1g1h, e1g1e, h1e1h, h1e1e all will be offered by moving our king two squares
             // so we filter out rook takes king moves (h1e1h, h1e1e) from dests
             for (const orig of Object.keys(msg.dests)) {
@@ -637,7 +636,7 @@ export default class RoundController {
             const container = document.getElementById('movelist') as HTMLElement;
             patch(container, h('div#movelist'));
 
-            msg.steps.forEach((step) => { 
+            msg.steps.forEach((step) => {
                 this.steps.push(step);
                 });
             updateMovelist(this);
@@ -675,7 +674,10 @@ export default class RoundController {
         // save capture state before updating chessground
         // 960 king takes rook castling is not capture
         const step = this.steps[this.steps.length - 1];
-        const capture = (lastMove !== null) && ((this.chessground.state.pieces[lastMove[1]] && step.san.slice(0, 2) !== 'O-') || (step.san.slice(1, 2) === 'x'));
+        let capture = false;
+        if (step.san !== undefined) {
+            capture = (lastMove !== null) && ((this.chessground.state.pieces[lastMove[1]] && step.san.slice(0, 2) !== 'O-') || (step.san.slice(1, 2) === 'x'));
+        }
         // console.log("CAPTURE ?", capture, lastMove, step);
         if (lastMove !== null && (this.turnColor === this.mycolor || this.spectator)) {
             if (isVariantClass(this.variant, 'shogiSound')) {
@@ -771,7 +773,7 @@ export default class RoundController {
                     turnColor: this.turnColor,
                     check: msg.check,
                 });
-            };
+            }
         };
     }
 
@@ -826,7 +828,7 @@ export default class RoundController {
         this.ply = ply
     }
 
-    private doSend = (message) => {
+    private doSend = (message: JSONObject) => {
         // console.log("---> doSend():", message);
         this.sock.send(JSON.stringify(message));
     }
@@ -925,8 +927,8 @@ export default class RoundController {
         }
     }
 
-    private setPremove = (orig, dest, meta) => {
-        this.premove = { orig, dest, meta };
+    private setPremove = (orig: Key, dest: Key, metadata?: SetPremoveMetadata) => {
+        this.premove = { orig, dest, metadata };
         // console.log("setPremove() to:", orig, dest, meta);
     }
 
@@ -935,7 +937,7 @@ export default class RoundController {
         this.preaction = false;
     }
 
-    private setPredrop = (role, key) => {
+    private setPredrop = (role: Role, key: Key) => {
         this.predrop = { role, key };
         // console.log("setPredrop() to:", role, key);
     }
@@ -977,7 +979,7 @@ export default class RoundController {
             diff[pos2key(pawnPos, geom)] = undefined;
             this.chessground.setPieces(diff);
             meta.captured = {role: "pawn"};
-        };
+        }
         // increase pocket count
         if (isVariantClass(this.variant, 'drop') && meta.captured) {
             let role = meta.captured.role
@@ -992,7 +994,7 @@ export default class RoundController {
                 this.pockets[1][role]++;
                 this.vpocket1 = patch(this.vpocket1, pocketView(this, this.turnColor, "bottom"));
             }
-        };
+        }
 
         if(isVariantClass(this.variant, 'commitGates')){
             updateCommittedGates(this, this.vgate0, this.vgate1);
@@ -1004,7 +1006,7 @@ export default class RoundController {
         } else {
             if (!this.promotion.start(moved.role, orig, dest)) this.sendMove(orig, dest, '');
         this.preaction = false;
-        };
+        }
     }
 
     private onUserDrop = (role, dest, meta) => {
@@ -1022,7 +1024,7 @@ export default class RoundController {
                 this.vpocket1 = patch(this.vpocket1, pocketView(this, this.turnColor, "bottom"));
             }
             if (this.variant === "kyotoshogi") {
-                if (!this.promotion.start(role, 'z0', dest, undefined)) this.sendMove(roleToSan[role] + "@", dest, '');
+                if (!this.promotion.start(role, 'z0', dest)) this.sendMove(roleToSan[role] + "@", dest, '');
             } else {
                 this.sendMove(roleToSan[role] + "@", dest, '')
             }
@@ -1048,9 +1050,9 @@ export default class RoundController {
 
     private onSelect = () => {
         return (key) => {
-            // console.log("ground.onSelect()", key, this.chessground.state);
-            // If drop selection was set dropDests we have to restore dests here
             if (this.chessground.state.movable.dests === undefined) return;
+
+            // If drop selection was set dropDests we have to restore dests here
             if (key != 'z0' && 'z0' in this.chessground.state.movable.dests) {
                 if (this.clickDropEnabled && this.clickDrop !== undefined && dropIsValid(this.dests, this.clickDrop.role, key)) {
                     this.chessground.newPiece(this.clickDrop, key);
@@ -1059,9 +1061,16 @@ export default class RoundController {
                 this.clickDrop = undefined;
                 //cancelDropMode(this.chessground.state);
                 this.chessground.set({ movable: { dests: this.dests }});
-            };
-            // Sittuyin in place promotion on Ctrl+click
-            if (this.chessground.state.stats.ctrlKey && 
+            }
+
+            // Save state.pieces to help recognise 960 castling (king takes rook) moves
+            // Shouldn't this be implemented in chessground instead?
+            if (this.model.chess960 === 'True' && isVariantClass(this.variant, 'gate')) {
+                this.prevPieces = Object.assign({}, this.chessground.state.pieces);
+            }
+
+            // Janggi pass and Sittuyin in place promotion on Ctrl+click
+            if (this.chessground.state.stats.ctrlKey &&
                 (key in this.chessground.state.movable.dests) &&
                 (this.chessground.state.movable.dests[key].indexOf(key) >= 0)
                 ) {
@@ -1079,7 +1088,7 @@ export default class RoundController {
                 } else if (isVariantClass(this.variant, 'pass') && piece!.role === 'king') {
                     this.pass();
                 }
-            };
+            }
         }
     }
 
@@ -1158,10 +1167,10 @@ export default class RoundController {
                 this.clocks[0].setTime(this.clocks[0].duration + 15 * 1000);
             } else {
                 this.clocks[1].setTime(this.clocks[1].duration + 15 * 1000);
-            };
+            }
         } else {
             this.clocks[1].setTime(this.clocks[1].duration + 15 * 1000);
-        };
+        }
     }
 
     private onMsgOffer = (msg) => {

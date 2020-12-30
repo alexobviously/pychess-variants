@@ -17,31 +17,31 @@ export interface PieceFamily {
 }
 
 export const BOARD_FAMILIES: { [key: string]: BoardFamily } = {
-    standard8x8: { geometry: Geometry.dim8x8, cg: "cg-512", boardCSS: ["8x8brown.svg", "8x8blue.svg", "8x8green.svg", "8x8maple.jpg", "8x8olive.jpg"] },
+    standard8x8: { geometry: Geometry.dim8x8, cg: "cg-512", boardCSS: ["8x8brown.svg", "8x8blue.svg", "8x8green.svg", "8x8maple.jpg", "8x8olive.jpg", "8x8santa.png"] },
     standard10x8: { geometry: Geometry.dim10x8, cg: "cg-640", boardCSS: ["10x8brown.svg", "10x8blue.svg", "10x8green.svg", "10x8maple.jpg", "10x8olive.jpg"] },
     standard10x10: { geometry: Geometry.dim10x10, cg: "cg-640-640", boardCSS: ["10x10brown.svg", "10x10blue.svg", "10x10green.svg", "10x10maple.jpg", "10x10olive.jpg"] },
     grand10x10: { geometry: Geometry.dim10x10, cg: "cg-640-640", boardCSS: ["Grandboard.svg", "10x10brown.svg", "10x10blue.svg", "10x10green.svg", "10x10maple.jpg", "10x10mapleGrand.png"] },
     makruk8x8: { geometry: Geometry.dim8x8, cg: "cg-512", boardCSS: ["makruk2.svg", "makruk.svg", "makruk.jpg"] },
     sittuyin8x8: { geometry: Geometry.dim8x8, cg: "cg-512", boardCSS: ["sittuyin.svg", "sittuyin.jpg", "sittuyingreen.svg", "sittuyinGrainBrown.svg"] },
-    shogi9x9: { geometry: Geometry.dim9x9, cg: "cg-576", boardCSS: ["shogi.svg", "Shogiban1.png", "Shogiban2.png", "shogic.svg", "ShogiMaple.png", 'ShogiGrayTexture.png', "doubutsu.svg"] },
+    shogi9x9: { geometry: Geometry.dim9x9, cg: "cg-576", boardCSS: ["shogi.svg", "Shogiban1.png", "Shogiban2.png", "shogic.svg", "ShogiMaple.png", 'ShogiGrayTexture.png', "ShogiSpace1.png", "doubutsu.svg"] },
     shogi5x5: { geometry: Geometry.dim5x5, cg: "cg-260", boardCSS: ["minishogi.svg", "MiniboardWood1.png", "MiniboardWood2.png"] },
     shogi3x4: { geometry: Geometry.dim3x4, cg: "cg-156", boardCSS: ["doubutsuboard.svg", "dobutsu3x4.svg"] },
-    xiangqi9x10: { geometry: Geometry.dim9x10, cg: "cg-576-640", boardCSS: ["xiangqi.svg", "xiangqic.svg", "xiangqiCTexture.png", "xiangqiPaper.png", "xiangqiWood.png", "xiangqiDark.svg"] },
+    xiangqi9x10: { geometry: Geometry.dim9x10, cg: "cg-576-640", boardCSS: ["xiangqi.svg", "xiangqic.svg", "xiangqiCTexture.png", "xiangqiPaper.png", "xiangqiWood.png", "xiangqiDark.svg", "xiangqiWikimedia.svg"] },
     xiangqi7x7: { geometry: Geometry.dim7x7, cg: "cg-448", boardCSS: ["minixiangqi.svg", "minixiangqiw.png", "minixqlg.svg"] },
     janggi9x10: { geometry: Geometry.dim9x10, cg: "cg-576-640", boardCSS: ["JanggiBrown.svg", "JanggiPaper.png", "JanggiWood.png", "JanggiDark.svg", "JanggiWoodDark.svg", "JanggiStone.svg"] },
     shogun8x8: { geometry: Geometry.dim8x8, cg: "cg-512", boardCSS: ["ShogunPlain.svg", "ShogunMaple.png", "ShogunMaple2.png", "ShogunBlue.svg", "8x8brown.svg", "8x8maple.jpg"] },
 };
 
 export const PIECE_FAMILIES: { [key: string]: PieceFamily } = {
-    standard: { pieceCSS: ["standard", "green", "alpha", "chess_kaneo"], baseURL: ["merida", "green", "alpha", "kaneo"] },
+    standard: { pieceCSS: ["standard", "green", "alpha", "chess_kaneo", "santa"], baseURL: ["merida", "green", "alpha", "kaneo", "santa"] },
     capa: { pieceCSS: ["capa0", "capa1", "capa2", "capa3", "capa4"], baseURL: ["capa", "seir", "green", "musk", "kaneo"] },
     seirawan: { pieceCSS: ["seir1", "seir0", "seir2", "seir3", "seir4"], baseURL: ["seir", "capa", "green", "musk", "kaneo"] },
     makruk: { pieceCSS: ["makrukwb", "makrukwr", "makruk", "makruks", "makruki"], baseURL: ["makruk/ada/wb", "makruk/ada/wr", "makruk/cambodian", "sittuyin/original", "makruk/intl"] },
     sittuyin: { pieceCSS: ["sittuyins", "sittuyinkagr", "sittuyinkabr", "sittuyinm", "sittuyini"], baseURL: ["sittuyin/original", "sittuyin/Ka_blackred", "sittuyin/Ka_greenred", "makruk/ada", "makruk/intl"] },
-    shogi: { pieceCSS: ["shogi0k", "shogi0", "shogi0w", "shogi0p", "shogi0m", "shogi0p3d", "shogi0d"], baseURL: ["shogi/ctk", "shogi/2kanji", "shogi/ctw", "shogi/ctp", "shogi/ctm", "shogi/ctp3d", "shogi/Ka"] },
+    shogi: { pieceCSS: ["shogi0k", "shogi0", "shogi0w", "shogi0p", "shogi0m", "shogi0p3d", "shogi0kw3d", "shogi0d"], baseURL: ["shogi/ctk", "shogi/2kanji", "shogi/ctw", "shogi/ctp", "shogi/ctm", "shogi/ctp3d", "shogi/ctkw3d", "shogi/Ka"] },
     kyoto: { pieceCSS: ["kyoto0", "kyoto0k", "kyoto0i"], baseURL: ["shogi", "kyoto/Kanji", "kyoto/Intl"] },
     dobutsu: { pieceCSS: ["dobutsu0"], baseURL: ["shogi/Ka/dobutsu"] },
-    xiangqi: { pieceCSS: ["xiangqi", "xiangqict3", "xiangqict2", "xiangqihnz", "xiangqict2w", "xiangqihnzw"], baseURL: ["xiangqi/playok", "xiangqi/ct3", "xiangqi/ct2", "xiangqi/hnz", "xiangqi/ct2w", "xiangqi/hnzw"] },
+    xiangqi: { pieceCSS: ["xiangqi", "xiangqict3", "xiangqict2", "xiangqihnz", "xiangqict2w", "xiangqihnzw", "xiangqiKa"], baseURL: ["xiangqi/playok", "xiangqi/ct3", "xiangqi/ct2", "xiangqi/hnz", "xiangqi/ct2w", "xiangqi/Ka"] },
     janggi: { pieceCSS: ["janggihb", "janggihg", "janggiikak", "janggiikaw", "janggikak", "janggikaw"], baseURL: ["janggi/hanjablue", "janggi/hanjagreen", "janggi/intlkakao", "janggi/intlwooden", "janggi/Ka_kako", "janggi/Ka_wooden"] },
     shako: { pieceCSS: ["shako0", "shako1", "shako2"], baseURL: ["shako", "kaneo", "green"] },
     shogun: { pieceCSS: ["shogunb", "shogunr", "shogunw"], baseURL: ["shogun/blue", "shogun/red", "shogun/white"] },
@@ -98,7 +98,7 @@ export interface IVariant {
 class Variant implements IVariant {
     readonly name: string;
     private readonly _displayName: string;
-    displayName(chess960: boolean = false) { return this._displayName + (chess960 ? "960" : ""); }
+    displayName(chess960 = false) { return this._displayName + (chess960 ? "960" : ""); }
     readonly tooltip: string;
     readonly startFen: string;
 
@@ -142,10 +142,10 @@ class Variant implements IVariant {
 
     private readonly _icon: string;
     private readonly _icon960: string;
-    icon(chess960: boolean = false) { return chess960 ? this._icon960 : this._icon; }
+    icon(chess960 = false) { return chess960 ? this._icon960 : this._icon; }
     readonly pieceSound: string;
 
-    constructor(data: any) {
+    constructor(data) {
         this.name = data.name;
         this._displayName = (data.displayName ?? data.name).toUpperCase();
         this.tooltip = data.tooltip;
@@ -231,7 +231,7 @@ export const VARIANTS: { [name: string]: IVariant } = {
         enPassant: true, autoQueenable: true,
         icon: "S",
     }),
-    
+
     makruk: new Variant({
         name: "makruk", tooltip: _("A game closely resembling the original Chaturanga"),
         startFen: "rnsmksnr/8/pppppppp/8/8/PPPPPPPP/8/RNSKMSNR w - - 0 1",
@@ -275,7 +275,7 @@ export const VARIANTS: { [name: string]: IVariant } = {
         startFen: "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL[-] w 0 1",
         board: "shogi9x9", piece: "shogi",
         firstColor: "Black", secondColor: "White",
-        pieceRoles: ["king", "rook", "bishop", "gold", "silver", "knight", "lance", "pawn"],
+        pieceRoles: ["king", "rook", "bishop", "gold", "silver", "knight", "lance", "pawn", "prook", "pbishop", "psilver", "pknight", "plance", "ppawn"],
         pocketRoles: ["pawn", "lance", "knight", "silver", "gold", "bishop", "rook"],
         promotion: "shogi",
         timeControl: "byoyomi",
@@ -303,7 +303,7 @@ export const VARIANTS: { [name: string]: IVariant } = {
         startFen: "rbsgk/4p/5/P4/KGSBR[-] w 0 1",
         board: "shogi5x5", piece: "shogi",
         firstColor: "Black", secondColor: "White",
-        pieceRoles: ["king", "rook", "bishop", "gold", "silver", "pawn"],
+        pieceRoles: ["king", "rook", "bishop", "gold", "silver", "pawn", "prook", "pbishop", "psilver", "ppawn"],
         pocketRoles: ["pawn", "silver", "gold", "bishop", "rook"],
         promotion: "shogi",
         timeControl: "byoyomi",
@@ -318,7 +318,7 @@ export const VARIANTS: { [name: string]: IVariant } = {
         startFen: "p+nks+l/5/5/5/+LSK+NP[-] w 0 1",
         board: "shogi5x5", piece: "kyoto",
         firstColor: "Black", secondColor: "White",
-        pieceRoles: ["king", "pknight", "silver", "plance", "pawn"],
+        pieceRoles: ["king", "pknight", "knight", "psilver", "silver", "plance", "lance", "ppawn", "pawn"],
         pocketRoles: ["pawn", "lance", "knight", "silver"],
         promotion: "kyoto",
         timeControl: "byoyomi",
@@ -442,7 +442,7 @@ export const VARIANTS: { [name: string]: IVariant } = {
         pieceRoles: ["king", "queen", "elephant", "hawk", "rook", "bishop", "knight", "pawn"],
         pocketRoles: ["hawk", "elephant"],
         enPassant: true, autoQueenable: true, gate: true,
-        icon: "L",
+        icon: "L",  chess960: true, icon960: "}",
     }),
 
     shouse: new Variant({
@@ -487,7 +487,7 @@ export const VARIANTS: { [name: string]: IVariant } = {
         name: "shogun", tooltip: _("Pieces promote and can be dropped, similar to Shogi"),
         startFen: "rnb+fkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNB+FKBNR w KQkq - 0 1",
         board: "shogun8x8", piece: "shogun",
-        pieceRoles: ["king", "pferz", "rook", "bishop", "knight", "pawn"],
+        pieceRoles: ["king", "pferz", "rook", "bishop", "knight", "pawn", "ferz", "prook", "pbishop", "pknight", "ppawn"],
         pocketRoles: ["pawn", "knight", "bishop", "rook", "ferz"],
         promotion: "shogi",
         timeControl: "byoyomi",
@@ -542,13 +542,24 @@ export const variants = Object.keys(VARIANTS);
 const disabledVariants = [ "gothic", "gothhouse" ];
 export const enabledVariants = variants.filter(v => !disabledVariants.includes(v));
 
-const variantGroups: { [ key: string ]: { label: string, variants: string[] } } = {
-    standard: { label: "Standard piece variants",  variants: [ "chess", "crazyhouse", "placement" ] },
-    sea:      { label: "Southeast Asian variants", variants: [ "makruk", "makpong", "cambodian", "sittuyin" ] },
-    shogi:    { label: "Shogi variants",           variants: [ "shogi", "minishogi", "kyotoshogi", "dobutsu" ] },
-    xiangqi:  { label: "Xiangqi variants",         variants: [ "xiangqi", "manchu", "janggi", "minixiangqi" ] },
-    fairy:    { label: "Fairy piece variants",     variants: [ "capablanca", "capahouse", "seirawan", "shouse", "grand", "grandhouse", "shako", "shogun", "orda", "synochess", "hoppelpoppel", "musketeer" ] },
+const variantGroups: { [ key: string ]: { variants: string[] } } = {
+    standard: { variants: [ "chess", "crazyhouse", "placement" ] },
+    sea:      { variants: [ "makruk", "makpong", "cambodian", "sittuyin" ] },
+    shogi:    { variants: [ "shogi", "minishogi", "kyotoshogi", "dobutsu" ] },
+    xiangqi:  { variants: [ "xiangqi", "manchu", "janggi", "minixiangqi" ] },
+    fairy:    { variants: [ "capablanca", "capahouse", "seirawan", "shouse", "grand", "grandhouse", "shako", "shogun", "orda", "synochess", "hoppelpoppel", "musketeer" ] },
 };
+
+function variantGroupLabel(group) {
+    const groups = {
+        standard: _("Standard piece variants"),
+        sea: _("Southeast Asian variants"),
+        shogi: _("Shogi variants"),
+        xiangqi: _("Xiangqi variants"),
+        fairy: _("Fairy piece variants"),
+    }
+    return groups[group];
+}
 
 export function selectVariant(id, selected, onChange, hookInsert) {
     return h('select#' + id, {
@@ -558,7 +569,7 @@ export function selectVariant(id, selected, onChange, hookInsert) {
     },
         Object.keys(variantGroups).map(g => {
             const group = variantGroups[g];
-            return h('optgroup', { props: { label: group.label } }, group.variants.map(v => {
+            return h('optgroup', { props: { label: variantGroupLabel(g) } }, group.variants.map(v => {
                 const variant = VARIANTS[v];
                 return h('option', {
                     props: { value: v, title: variant.tooltip },
@@ -621,6 +632,16 @@ export function needPockets(variant: string) {
 
 export function hasEp(variant: string) {
     return isVariantClass(variant, 'enPassant');
+}
+
+export function hasCastling(variant: string, color: Color) {
+    if (variant === 'placement') return true;
+    const castl = VARIANTS[variant].startFen.split(' ')[2];
+    if (color === 'white') {
+        return castl.includes('KQ');
+    } else {
+        return castl.includes('kq');
+    }
 }
 
 export function zero2grand(move) {
@@ -729,29 +750,33 @@ export function validFen(variantName: string, fen: string) {
     if (parts.length > 2 && variantName !== 'dobutsu') {
         if (parts[2].split('').some(wrong)) return false;
 
-        // Castling right need rooks and king placed in starting square
-        // capablanca: "rnabqkbcnr/pppppppppp/10/10/10/10/PPPPPPPPPP/RNABQKBCNR w KQkq - 0 1",
-        // shako: "c8c/ernbqkbnre/pppppppppp/10/10/10/10/PPPPPPPPPP/ERNBQKBNRE/C8C w KQkq - 0 1",
-        const rookPos = {
-            K: (variantName === 'shako') ? boardArray[boardHeight - 2][boardWidth - 2] : boardArray[boardHeight - 1][boardWidth - 1],
-            Q: (variantName === 'shako') ? boardArray[boardHeight - 2][1] : boardArray[boardHeight - 1][0],
-            k: (variantName === 'shako') ? boardArray[1][boardWidth - 2] : boardArray[0][boardWidth - 1],
-            q: (variantName === 'shako') ? boardArray[1][1] : boardArray[0][0],
-        };
+        // TODO: Checking S-chess960 FEN is tricky
+        // Editor and Analysis board needs chess960 checkbox similar to new game dialog first
+        if (variantName !== 'seirawan' && variantName !== 'shouse') {
+            // Castling right need rooks and king placed in starting square
+            // capablanca: "rnabqkbcnr/pppppppppp/10/10/10/10/PPPPPPPPPP/RNABQKBCNR w KQkq - 0 1",
+            // shako: "c8c/ernbqkbnre/pppppppppp/10/10/10/10/PPPPPPPPPP/ERNBQKBNRE/C8C w KQkq - 0 1",
+            const rookPos = {
+                K: (variantName === 'shako') ? boardArray[boardHeight - 2][boardWidth - 2] : boardArray[boardHeight - 1][boardWidth - 1],
+                Q: (variantName === 'shako') ? boardArray[boardHeight - 2][1] : boardArray[boardHeight - 1][0],
+                k: (variantName === 'shako') ? boardArray[1][boardWidth - 2] : boardArray[0][boardWidth - 1],
+                q: (variantName === 'shako') ? boardArray[1][1] : boardArray[0][0],
+            };
 
-        for (const c of parts[2]) {
-            switch (c) {
-                case 'K':
-                case 'Q':
-                    if (rookPos[c] !== 'R') return false;
-                    // TODO check king position
-                    break;
-                case 'k':
-                case 'q':
-                    if (rookPos[c] !== 'r') return false;
-                    // TODO check king position
-                    break;
-                    // TODO Column-based right
+            for (const c of parts[2]) {
+                switch (c) {
+                    case 'K':
+                    case 'Q':
+                        if (rookPos[c] !== 'R') return false;
+                        // TODO check king position
+                        break;
+                    case 'k':
+                    case 'q':
+                        if (rookPos[c] !== 'r') return false;
+                        // TODO check king position
+                        break;
+                        // TODO Column-based right
+                }
             }
         }
     }
@@ -923,7 +948,7 @@ export function splitMusketeerFen(fen: string){
     const whiteGate = fen.substring(end + 1);
     console.log("splitmusketeerfen: "+board+", "+whiteGate+", "+blackGate);
     return [board, whiteGate, blackGate];
-}   
+}
 
 // TODO: create a way to get this from chessgroundx/fen.ts instead
 export const rolesVariants: { [letter: string]: string } = {

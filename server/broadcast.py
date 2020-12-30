@@ -13,8 +13,13 @@ async def lobby_broadcast(sockets, response):
 async def round_broadcast(game, users, response, full=False, channels=None):
     if game.spectators:
         for spectator in game.spectators:
-            if game.id in users[spectator.username].game_sockets:
-                await users[spectator.username].game_sockets[game.id].send_json(response)
+            try:
+                if game.id in users[spectator.username].game_sockets:
+                    await users[spectator.username].game_sockets[game.id].send_json(response)
+            except KeyError:
+                # spectator was removed from users
+                pass
+
     if full:
         if not game.wplayer.bot:
             try:
@@ -22,6 +27,8 @@ async def round_broadcast(game, users, response, full=False, channels=None):
                 await wplayer_ws.send_json(response)
             except KeyError:
                 print("wplayer %s game socket closed" % game.wplayer.username)
+            except AttributeError:
+                print("wplayer %s has no game_sockets" % game.wplayer.username)
 
         if not game.bplayer.bot:
             try:
@@ -29,6 +36,8 @@ async def round_broadcast(game, users, response, full=False, channels=None):
                 await bplayer_ws.send_json(response)
             except KeyError:
                 print("bplayer %s game socket closed" % game.bplayer.username)
+            except AttributeError:
+                print("bplayer %s has no game_sockets" % game.bplayer.username)
 
     # Put response data to sse subscribers queue
     if channels is not None:

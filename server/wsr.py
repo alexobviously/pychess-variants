@@ -1,5 +1,4 @@
 import asyncio
-import concurrent
 import json
 import logging
 import random
@@ -44,7 +43,7 @@ async def round_socket_handler(request):
     game = None
     opp_ws = None
 
-    log.debug("-------------------------- NEW round WEBSOCKET by %s" % user)
+    log.debug("-------------------------- NEW round WEBSOCKET by %s", user)
 
     try:
         async for msg in ws:
@@ -302,7 +301,7 @@ async def round_socket_handler(request):
                         game = await load_game(request.app, data["gameId"])
                         if session_user is not None:
                             if data["username"] and data["username"] != session_user:
-                                log.info("+++ Existing game_user %s socket connected as %s." % (session_user, data["username"]))
+                                log.info("+++ Existing game_user %s socket connected as %s.", session_user, data["username"])
                                 session_user = data["username"]
                                 if session_user in users:
                                     user = users[session_user]
@@ -320,7 +319,7 @@ async def round_socket_handler(request):
                                     user = User(request.app, username=data["username"], anon=data["username"].startswith("Anon-"))
                                     users[user.username] = user
                         else:
-                            log.info("+++ Existing game_user %s socket reconnected." % data["username"])
+                            log.info("+++ Existing game_user %s socket reconnected.", data["username"])
                             session_user = data["username"]
                             if session_user in users:
                                 user = users[session_user]
@@ -345,7 +344,6 @@ async def round_socket_handler(request):
                             await ws.send_json(response)
                             continue
                         else:
-                            games[data["gameId"]] = game
                             if user.username != game.wplayer.username and user.username != game.bplayer.username:
                                 game.spectators.add(user)
                                 await round_broadcast(game, users, game.spectator_list, full=True)
@@ -475,20 +473,22 @@ async def round_socket_handler(request):
                             await ws.send_json(response)
 
             elif msg.type == aiohttp.WSMsgType.CLOSED:
-                log.debug("--- Round websocket %s msg.type == aiohttp.WSMsgType.CLOSED" % id(ws))
+                log.debug("--- Round websocket %s msg.type == aiohttp.WSMsgType.CLOSED", id(ws))
                 break
 
             elif msg.type == aiohttp.WSMsgType.ERROR:
-                log.error("--- Round ws %s msg.type == aiohttp.WSMsgType.ERROR" % id(ws))
+                log.error("--- Round ws %s msg.type == aiohttp.WSMsgType.ERROR", id(ws))
                 break
 
             else:
-                log.debug("--- Round ws other msg.type %s %s" % (msg.type, msg))
-    except concurrent.futures._base.CancelledError:
-        # client disconnected
+                log.debug("--- Round ws other msg.type %s %s", msg.type, msg)
+
+    except OSError:
+        # disconnected
         pass
-    except Exception as e:
-        log.error("!!! Round ws exception occured: %s" % type(e))
+
+    except Exception:
+        log.exception("ERROR: Exception in round_socket_handler() owned by %s ", session_user)
 
     finally:
         log.debug("---fianlly: await ws.close()")

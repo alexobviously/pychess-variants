@@ -26,6 +26,11 @@ async def get_work(request, data):
     # priority can be "move" or "analysis"
     try:
         (priority, work_id) = fishnet_work_queue.get_nowait()
+        try:
+            fishnet_work_queue.task_done()
+        except ValueError:
+            log.error("task_done() called more times than there were items placed in the queue in fishnet.py get_work()")
+
         work = request.app["works"][work_id]
         # print("FISHNET ACQUIRE we have work for you:", work)
         if priority == ANALYSIS:
@@ -61,8 +66,6 @@ async def get_work(request, data):
                 fm[worker].append("%s %s %s %s for level %s" % (datetime.utcnow(), work_id, "request", "move AGAIN", work["work"]["level"]))
                 return web.json_response(work, status=202)
         return web.Response(status=204)
-    except Exception:
-        raise
 
 
 async def fishnet_acquire(request):
@@ -115,7 +118,7 @@ async def fishnet_analysis(request):
     try:
         user_ws = users[username].game_sockets[gameId]
     except KeyError:
-        log.error("Can't send analysis to %s. Game %s was removed from game_sockets !!!" % (username, gameId))
+        log.error("Can't send analysis to %s. Game %s was removed from game_sockets !!!", username, gameId)
         return web.Response(status=204)
 
     length = len(data["analysis"])
@@ -126,10 +129,11 @@ async def fishnet_analysis(request):
                 if "analysis" not in game.steps[i]:
                     # TODO: save PV only for inaccuracy, mistake and blunder
                     # see https://github.com/ornicar/lila/blob/master/modules/analyse/src/main/Advice.scala
+                    vp_in_san = "pv_san" in analysis.keys()
                     game.steps[i]["analysis"] = {
                         "s": analysis["score"],
                         "d": analysis["depth"],
-                        "p": analysis["pv_san"],
+                        "p": analysis["pv_san"] if vp_in_san else analysis["pv"],
                         "m": analysis["pv"].partition(" ")[0]  # save first PV move to draw advice arrow
                     }
                 else:
@@ -209,7 +213,7 @@ async def fishnet_abort(request):
     try:
         request.app["workers"].remove(data["fishnet"]["apikey"])
     except KeyError:
-        log.debug("Worker %s was was already removed" % key)
+        log.debug("Worker %s was was already removed", key)
 
     # re-schedule the job
     request.app["fishnet"].put_nowait((ANALYSIS, work_id))

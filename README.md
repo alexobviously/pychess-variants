@@ -33,7 +33,7 @@ Currently supported games are:
 - [Grandhouse (Grand chess+Crazyhouse)](https://www.pychess.org/variant/grandhouse)
 - [Standard chess](https://www.pychess.org/variant/chess)
 
-Additionally you can check Chess960 option in for Standard, Crazyhouse, Capablanca and Capahouse to start games from random positions with 
+Additionally you can check Chess960 option in for Standard, Crazyhouse, S-chess, Capablanca and Capahouse to start games from random positions with 
 [Chess960 castling rules](https://en.wikipedia.org/wiki/Chess960#Castling_rules)
 
 For move generation, validation, analysis and engine play it uses
@@ -44,7 +44,7 @@ For move generation, validation, analysis and engine play it uses
 On client side it is based on
 [chessgroundx](https://github.com/gbtami/chessgroundx) fork of [chessground](https://github.com/ornicar/chessground)
 
-## [![Patreon](https://c5.patreon.com/external/logo/become_a_patron_button.png)](https://www.patreon.com/bePatron?u=29103205)
+##
 
 As you know, pychess-variants is a free server and it will remain free forever. However, maintaining and improving the server costs time and money.
 
