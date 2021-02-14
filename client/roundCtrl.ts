@@ -122,7 +122,8 @@ export default class RoundController {
             onerror: e => console.log('Error:', e),
             };
 
-        const ws = (location.host.indexOf('pychess') === -1) ? 'ws://' : 'wss://';
+        //const ws = (location.host.indexOf('pychess') === -1) ? 'ws://' : 'wss://';
+        const ws = 'wss://'
         this.sock = new Sockette(ws + location.host + "/wsr", opts);
 
         this.model = model;

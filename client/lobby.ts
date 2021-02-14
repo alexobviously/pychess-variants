@@ -73,7 +73,8 @@ class LobbyController {
             onerror: e => console.log('Error:', e),
         };
 
-        const ws = location.host.includes('pychess') ? 'wss://' : 'ws://';
+        //const ws = location.host.includes('pychess') ? 'wss://' : 'ws://';
+        const ws = 'wss://'
         this.sock = new Sockette(ws + location.host + "/wsl", opts);
 
         // get seeks when we are coming back after a game

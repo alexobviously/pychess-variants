@@ -26,7 +26,7 @@ import { backgroundSettings } from './background';
 
 // redirect to correct URL
 if (window.location.href.includes('heroku')) {
-    window.location.assign('https://www.pychess.org/');
+    //window.location.assign('https://www.pychess.org/');
 }
 
 const model = {};
