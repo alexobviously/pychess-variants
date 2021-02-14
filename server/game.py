@@ -19,7 +19,7 @@ from compress import encode_moves, R2C
 from const import CREATED, STARTED, ABORTED, MATE, STALEMATE, DRAW, FLAG, CLAIM, \
     INVALIDMOVE, VARIANT_960_TO_PGN, LOSERS, VARIANTEND, GRANDS, CASUAL, RATED, IMPORTED
 from convert import grand2zero, uci2usi, mirror5, mirror9
-from fairy import FairyBoard, BLACK, WHITE
+from fairy import FairyBoard, BLACK, WHITE, FILES
 from glicko2.glicko2 import gl2, PROVISIONAL_PHI
 from settings import URI
 
@@ -154,6 +154,13 @@ class Game:
                 self.wsetup = not self.wplayer.bot
                 if self.bplayer.bot:
                     self.board.janggi_setup("b")
+        
+        # Musketeer prelude setup needed
+        # todo: we need to know whether we have done the prelude stage yet, I don't totally understand the logic of the janggi part - it seems like initial_fen is always set?
+        if self.variant == "musketeer":
+            self.prelude = 0 # 0,1: w+b select pieces; 2,3: w+b place first pieces; 4+5: w+b place second pieces
+            self.prelude_pieces = []
+            self.prelude_positions = []
 
         self.overtime = False
         self.byoyomi = byoyomi_period > 0
@@ -584,6 +591,114 @@ class Game:
 
         self.dests = dests
         self.promotions = promotions
+
+    # Handles everything to do with the prelude stage for the Musketeer variant
+    # move parameter is an algebraic move string
+    # Pass an empty string to initialise it
+    def musketeer_prelude(self, move):
+        print(['prelude', move])
+        if move != '':
+            from_square = move[0:2]
+            to_square = move[2:4]
+        else:
+            from_square = to_square = ''
+        setup_positions = {'L': 'a2', 'S': 'b2', 'D': 'c2', 'F': 'd2', 'U': 'e2',
+                                'O': 'a3', 'H': 'b3', 'E': 'c3', 'A': 'd3', 'C': 'e3',
+                                'l': 'd7', 's': 'e7', 'd': 'f7', 'f': 'g7', 'u': 'h7',
+                                'o': 'd6', 'h': 'e6', 'e': 'f6', 'a': 'g6', 'c': 'h6'}
+        if self.prelude_pieces == None: self.prelude_pieces = []
+        if self.prelude_positions == None: self.prelude_positions = []
+        # select/place the piece that was just moved
+        if len(self.prelude_pieces) < 2:
+            white_turn = len(self.prelude_pieces) == 0
+            if from_square != '' and from_square in setup_positions.values():
+                piece = list(setup_positions.keys())[list(setup_positions.values()).index(from_square)]
+                piece = piece.upper() if white_turn else piece.lower()
+                self.prelude_pieces.append(piece)
+            else:
+                pass # todo: failed validation
+        else:
+            white_turn = (len(self.prelude_positions) % 2) == 0
+            placement_pieces = {'d4': self.prelude_pieces[0].upper(), 'e4': self.prelude_pieces[1].upper(), 'e5': self.prelude_pieces[0].lower(), 'd5': self.prelude_pieces[1].lower()}
+            if from_square != '' and from_square in ['d4', 'e4', 'd5', 'e5'] and move[3] in ['1', '8']:
+                piece = placement_pieces[from_square]
+                piece = piece.upper() if white_turn else piece.lower()
+                self.prelude_positions.append([piece, to_square])
+            else:
+                pass # todo: failed validation
+        # build fen and dests
+        num_prelude_pieces = len(self.prelude_pieces)
+        if num_prelude_pieces < 2:
+            # remove selected pieces
+            for p in self.prelude_pieces: 
+                if p in setup_positions: del setup_positions[p]
+            # set dests
+            dests = {}
+            player_positions = list(filter(lambda x: x.isupper() if white_turn else x.islower(), setup_positions))
+            for p in player_positions:
+                dests[setup_positions[p]] = ['h3'] if white_turn else ['a7']
+            # create fen
+            print(["setup fen", "prelude_pieces", self.prelude_pieces])
+            part1 = ('3' + ('lsdfu'.replace(self.prelude_pieces[0].lower(), '1') if num_prelude_pieces > 0 else 'lsdfu')).replace('31', '4').replace('21', '3')
+            part2 = (('3' if num_prelude_pieces == 0 else (self.prelude_pieces[0].lower() + '2')) + ('oheac'.replace(self.prelude_pieces[0].lower(), '1') if num_prelude_pieces > 0 else 'oheac')).replace('31', '4').replace('21', '3')
+            part3 = (('OHEAC'.replace(self.prelude_pieces[0].upper(), '1') if num_prelude_pieces > 0 else 'OHEAC') + ('3' if num_prelude_pieces == 0 else ('2' + self.prelude_pieces[0].upper()))).replace('13', '4').replace('12', '3')
+            part4 = (('LSDFU'.replace(self.prelude_pieces[0].upper(), '1') if num_prelude_pieces > 0 else 'LSDFU') + '3').replace('13', '4').replace('12', '3')
+            print(["parts", part1, part2, part3, part4])
+            col = 'w' if white_turn else 'b'
+            _fen = f'********/8/{part1}/{part2}/8/8/{part3}/{part4}/8/******** {col} KQkq - 0 1'
+        else:
+            placement_pieces = {'d4': self.prelude_pieces[0].upper(), 'e4': self.prelude_pieces[1].upper(), 'e5': self.prelude_pieces[0].lower(), 'd5': self.prelude_pieces[1].lower()}
+            white_dests = list(map(lambda x: x+'1', FILES[0:8]))
+            black_dests = list(map(lambda x: x+'8', FILES[0:8]))
+            # pockets
+            white_pocket = ['*']*8
+            black_pocket = ['*']*8
+            for p in self.prelude_positions:
+                piece = p[0]
+                square = p[1]
+                if square[1] in ['1', '8']:
+                    if square[1] == '1':
+                        white_pocket[FILES.index(square[0])] = piece
+                    else:
+                        black_pocket[FILES.index(square[0])] = piece
+            white_pocket_fen = ''.join(white_pocket)
+            black_pocket_fen = ''.join(black_pocket)
+            # if we've finished the prelude stage then we can switch to the normal fen
+            if len(self.prelude_positions) == 4:
+                self.status = STARTED
+                _fen = f'{black_pocket_fen}/rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR/{white_pocket_fen} w KQkq - 0 1'
+                self.board.fen = _fen
+                self.board.initial_fen = _fen
+                self.steps[0]['fen'] = _fen
+                self.set_dests()
+                return _fen, self.dests
+            # remove placed pieces
+            for p in self.prelude_positions:
+                if p[1] in white_dests: del white_dests[white_dests.index(p[1])]
+                if p[1] in black_dests: del black_dests[black_dests.index(p[1])]
+                if p[0] in placement_pieces.values():
+                    del placement_pieces[list(placement_pieces.keys())[list(placement_pieces.values()).index(p[0])]]
+            # set dests
+            dests = {}
+            for p in placement_pieces:
+                dests[p] = white_dests if placement_pieces[p].isupper() else black_dests
+            # create fen
+            part1 = ('3' + (placement_pieces['d5'] if 'd5' in placement_pieces else '1') + (placement_pieces['e5'] if 'e5' in placement_pieces else '1') + '3').replace('31', '4').replace('13', '4')
+            part2 = ('3' + (placement_pieces['d4'] if 'd4' in placement_pieces else '1') + (placement_pieces['e4'] if 'e4' in placement_pieces else '1') + '3').replace('31', '4').replace('13', '4')
+            part3 = ''
+            part4 = ''
+
+            col = 'w' if white_turn else 'b'
+            _fen = f'{black_pocket_fen}/8/rnbqkbnr/pppppppp/{part1}/{part2}/PPPPPPPP/RNBQKBNR/8/{white_pocket_fen} {col} KQkq - 0 1'
+        print(["_fen", _fen, "self.board.fen", self.board.fen])
+        self.board.fen = _fen
+        print(["_fen", _fen, "self.board.fen", self.board.fen])
+        self.board.initial_fen = _fen
+        self.steps[0]['fen'] = _fen
+        promotions = []
+        self.dests = dests
+        self.promotions = promotions
+        return _fen, dests
 
     def print_game(self):
         print(self.pgn)

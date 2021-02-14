@@ -13,7 +13,7 @@ from const import ANALYSIS, STARTED
 from fairy import WHITE, BLACK
 from seek import challenge, Seek
 from user import User
-from utils import analysis_move, play_move, draw, new_game, load_game, tv_game, tv_game_user, online_count, MyWebSocketResponse
+from utils import analysis_move, play_move, prelude_move, draw, new_game, load_game, tv_game, tv_game_user, online_count, MyWebSocketResponse
 
 log = logging.getLogger(__name__)
 
@@ -56,10 +56,16 @@ async def round_socket_handler(request):
                     # log.debug("Websocket (%s) message: %s" % (id(ws), msg))
 
                     if data["type"] == "move":
-                        # log.info("Got USER move %s %s %s" % (user.username, data["gameId"], data["move"]))
+                        log.info("Got USER move %s %s %s" % (user.username, data["gameId"], data["move"]))
+                        print(['msg move',data])
                         game = await load_game(request.app, data["gameId"])
                         move = data["move"]
-                        await play_move(request.app, user, game, move, data["clocks"], data["ply"])
+                        if game.variant == "musketeer" and len(game.prelude_positions) < 4:
+                            print('----prelude_move')
+                            await prelude_move(request.app, user, game, move, data["clocks"], data["ply"])
+                        else:
+                            print('----play_move')
+                            await play_move(request.app, user, game, move, data["clocks"], data["ply"])
 
                     elif data["type"] == "analysis_move":
                         game = await load_game(request.app, data["gameId"])
@@ -94,6 +100,17 @@ async def round_socket_handler(request):
                             else:
                                 board_response = game.get_board(full=True)
                                 await ws.send_json(board_response)
+                        elif game.variant == "musketeer":
+                            print(["msg - board - musketeer", data])
+                            # is_prelude = (len(game.prelude_positions) < 4)
+                            game.musketeer_prelude('')
+                            # else: pass
+                            # print(f'musketeer fen is {fen}')
+                            # game.board.fen = fen
+                            # game.board.initial_fen = fen
+                            board_response = game.get_board(full=True)
+                            print(board_response)
+                            await ws.send_json(board_response)
                         else:
                             board_response = game.get_board(full=True)
                             await ws.send_json(board_response)
@@ -137,6 +154,29 @@ async def round_socket_handler(request):
 
                         if opp_player.bot:
                             await opp_player.event_queue.put(game.game_start)
+
+                    elif data["type"] == "prelude":
+                        # Musketeer game starts with a prelude phase
+                        game = await load_game(request.app, data["gameId"])
+
+                        opp_name = game.wplayer.username if user.username == game.bplayer.username else game.bplayer.username
+                        opp_player = users[opp_name]
+                        color = data["color"]
+                        opp_color =  "black" if data["color"] == "white" else "white"
+
+                        game.steps[0]["fen"] = data["fen"]
+
+                        if game.prelude < 2:    # piece selection
+                            fen = game.board.musketeer_prelude()
+                        else:                   # piece placement
+                            pass
+
+                        game.board.initial_fen = fen
+                        game.initial_fen = game.board.initial_fen
+                        game.board.fen = game.board.initial_fen
+
+                        response = {"type": "prelude", "color": opp_color, "fen": fen}
+                        await ws.send_json(response)
 
                     elif data["type"] == "analysis":
                         game = await load_game(request.app, data["gameId"])

@@ -22,9 +22,9 @@ import { JSONObject } from './types';
 import { _ } from './i18n';
 import { Gating } from './gating';
 import { Promotion } from './promotion';
-import { dropIsValid, pocketView, updatePockets, Pockets } from './pocket';
+import { dropIsValid, pocketView, updatePockets, Pockets, updateCommittedGates  } from './pocket';
 import { sound } from './sound';
-import { roleToSan, grand2zero, zero2grand, VARIANTS, getPockets, isVariantClass, sanToRole } from './chess';
+import { roleToSan, grand2zero, zero2grand, VARIANTS, getPockets, isVariantClass, sanToRole, splitMusketeerFen, rolesVariants } from './chess';
 import { crosstableView } from './crosstable';
 import { chatMessage, chatView } from './chat';
 import { createMovelistButtons, updateMovelist, selectMove, activatePlyVari } from './movelist';
@@ -82,6 +82,8 @@ export default class AnalysisController {
     vpocket1: VNode;
     vplayer0: VNode;
     vplayer1: VNode;
+    vgate0: VNode;
+    vgate1: VNode;
     vpgn: VNode;
     vscore: VNode | HTMLElement;
     vinfo: VNode | HTMLElement;
@@ -190,6 +192,7 @@ export default class AnalysisController {
 
         this.spectator = this.model["username"] !== this.wplayer && this.model["username"] !== this.bplayer;
         this.hasPockets = isVariantClass(this.variant, 'pocket');
+        this.hasCommittedGates = isVariantClass(this.variant, 'commitGates');
         if (this.variant === 'janggi') {
             this.notation = Notation.JANGGI;
         } else {
@@ -226,7 +229,15 @@ export default class AnalysisController {
         this.result = "";
         const parts = this.fullfen.split(" ");
 
-        const fen_placement = parts[0];
+        var fen_placement = parts[0];
+        if(this.hasCommittedGates){
+            const mfen = splitMusketeerFen(fen_placement);
+            fen_placement = mfen[0];
+            this.committedGates = [Array<string>(8), Array<string>(8)];
+            this.setCommittedGate(0, mfen[1]);
+            this.setCommittedGate(1, mfen[2]);
+        }
+
         this.turnColor = parts[1] === "w" ? "white" : "black";
 
         this.steps.push({
@@ -272,6 +283,13 @@ export default class AnalysisController {
             const pocket0 = document.getElementById('pocket0') as HTMLElement;
             const pocket1 = document.getElementById('pocket1') as HTMLElement;
             updatePockets(this, pocket0, pocket1);
+        }
+
+        // initialize committed gates
+        if(this.hasCommittedGates){
+            const gate0 = document.getElementById('gate0') as HTMLElement;
+            const gate1 = document.getElementById('gate1') as HTMLElement;
+            updateCommittedGates(this, gate0, gate1);
         }
 
         this.ctableContainer = document.getElementById('ctable-container') as HTMLElement;
@@ -320,6 +338,15 @@ export default class AnalysisController {
         boardSettings.updateBoardStyle(boardFamily);
         boardSettings.updatePieceStyle(pieceFamily);
         boardSettings.updateZoom(boardFamily);
+    }
+
+    private setCommittedGate(idx: number, gateString: string){
+        console.log("setCommittedGate for idx: "+idx+", string: "+gateString);
+        for(var i = 0; i < gateString.length; i++){
+            var letter = gateString[i].toLowerCase();
+            if(letter != '*' && rolesVariants[letter] != undefined) this.committedGates[idx][i] = rolesVariants[letter];
+            else this.committedGates[idx][i] = '*';
+        }
     }
 
     getGround = () => this.chessground;
@@ -435,6 +462,15 @@ export default class AnalysisController {
         this.promotions = msg.promo;
 
         const parts = msg.fen.split(" ");
+        var fen_board = parts[0];
+        const mfen = splitMusketeerFen(fen_board);
+        fen_board = mfen[0];
+        if(this.hasCommittedGates){
+            console.log("set committed gates (onmsgboard)");
+            this.setCommittedGate(0, mfen[1]);
+            this.setCommittedGate(1, mfen[2]);
+        }
+        
         this.turnColor = parts[1] === "w" ? "white" : "black";
 
         if (msg.steps.length > 1) {
@@ -503,7 +539,7 @@ export default class AnalysisController {
 
         if (this.spectator) {
             this.chessground.set({
-                fen: parts[0],
+                fen: fen_board,
                 turnColor: this.turnColor,
                 check: msg.check,
                 lastMove: lastMove,
@@ -1080,6 +1116,10 @@ export default class AnalysisController {
                 this.pockets[1][role]++;
                 this.vpocket1 = patch(this.vpocket1, pocketView(this, this.turnColor, "bottom"));
             }
+        }
+
+        if(isVariantClass(this.variant, 'commitGates')){
+            updateCommittedGates(this, this.vgate0, this.vgate1);
         }
 
         //  gating elephant/hawk

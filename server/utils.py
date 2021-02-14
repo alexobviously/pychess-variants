@@ -545,6 +545,51 @@ async def play_move(app, user, game, move, clocks=None, ply=None):
     if not invalid_move:
         await round_broadcast(game, users, board_response, channels=app["game_channels"])
 
+async def prelude_move(app, user, game, move, clocks=None, ply=None):
+    gameId = game.id
+    users = app["users"]
+    invalid_move = False
+    # log.info("%s move %s %s %s - %s" % (user.username, move, gameId, game.wplayer.username, game.bplayer.username))
+    print("prelude_move game.board.fen", game.board.fen)
+    game.musketeer_prelude(move)
+    response = {
+        'type': 'prelude',
+        'fen': game.board.fen,
+        'dests': game.dests
+    }
+    print("prelude_move game.board.fen~", game.board.fen)
+    if not invalid_move:
+        #board_response = game.get_board(full=game.board.ply == 1)
+
+        if not user.bot:
+            ws = user.game_sockets[gameId]
+            await ws.send_json(response)
+
+    if user.bot and game.status > STARTED:
+        await user.game_queues[gameId].put(game.game_end)
+
+    opp_name = game.wplayer.username if user.username == game.bplayer.username else game.bplayer.username
+    if users[opp_name].bot:
+        if game.status > STARTED:
+            await users[opp_name].game_queues[gameId].put(game.game_end)
+        else:
+            await users[opp_name].game_queues[gameId].put(game.game_state)
+    else:
+        try:
+            opp_ws = users[opp_name].game_sockets[gameId]
+            if not invalid_move:
+                await opp_ws.send_json(response)
+            if game.status > STARTED:
+                response = {"type": "gameEnd", "status": game.status, "result": game.result, "gameId": game.id, "pgn": game.pgn}
+                await opp_ws.send_json(response)
+        except KeyError:
+            log.exception("Move %s can't send to %s. Game %s was removed from game_sockets !!!", move, user.username, gameId)
+        except ConnectionResetError:
+            log.exception("Move %s can't send to %s in game %s. User disconnected !!!", move, user.username, gameId)
+
+    if not invalid_move:
+        await round_broadcast(game, users, response, channels=app["game_channels"])
+
 
 def pgn(doc):
     variant = C2V[doc["v"]]

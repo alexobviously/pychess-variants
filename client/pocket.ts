@@ -220,7 +220,7 @@ export function pockets2str(ctrl) {
 }
 
 export function updateCommittedGates(ctrl: RoundController | AnalysisController, vgate0, vgate1): void{
-  console.log("updateCommittedGates");
+  console.log("updateCommittedGates ~~");
   if(ctrl.hasCommittedGates){
     console.log("hasCommittedGates == true");
     const mfen = splitMusketeerFen(ctrl.fullfen.split(" ")[0]);
@@ -234,7 +234,17 @@ export function updateCommittedGates(ctrl: RoundController | AnalysisController,
         else ctrl.committedGates[i][j] = '*';
       }
     }
-    ctrl.vgate0 = patch(vgate0, gateView(ctrl, (ctrl.flip) ? ctrl.mycolor : ctrl.oppcolor, "top", ctrl.committedGates[(ctrl.flip)?0:1]));
-    ctrl.vgate1 = patch(vgate1, gateView(ctrl, (ctrl.flip) ? ctrl.oppcolor : ctrl.mycolor, "bottom", ctrl.committedGates[(ctrl.flip)?1:0]));
+    const color1 = (ctrl.flip) ? ctrl.mycolor : ctrl.oppcolor
+    const color2 = (ctrl.flip) ? ctrl.oppcolor : ctrl.mycolor
+    const invert = (ctrl.mycolor == "white" && ctrl.flip) || (ctrl.mycolor == "black" && !ctrl.flip)
+    var gate1 = ctrl.committedGates[(color1 == "white")?0:1]
+    var gate2 = ctrl.committedGates[(color2 == "white")?0:1]
+    if(invert){
+      gate1 = gate1.reverse()
+      gate2 = gate2.reverse()
+    }
+    console.log("color1: "+color1+", color2: "+color2)
+    ctrl.vgate0 = patch(vgate0, gateView(ctrl, color1, "top", gate1));
+    ctrl.vgate1 = patch(vgate1, gateView(ctrl, color2, "bottom", gate2));
   }
 }

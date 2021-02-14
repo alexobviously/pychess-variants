@@ -56,6 +56,8 @@ export default class RoundController {
     vpocket1: VNode;
     vplayer0: VNode;
     vplayer1: VNode;
+    vgate0: VNode;
+    vgate1: VNode;
     vmiscInfoW: VNode;
     vmiscInfoB: VNode;
     vpng: VNode;
@@ -476,6 +478,30 @@ export default class RoundController {
         ]));
     }
 
+    // Musketeer prelude phase
+    private onMsgPrelude = (msg) => {
+        const parts = msg.fen.split(" ");
+        var fen_board = parts[0];
+        const mfen = splitMusketeerFen(fen_board);
+        fen_board = mfen[0];
+        if(this.hasCommittedGates){
+            console.log("set committed gates (onmsgboard)");
+            this.setCommittedGate(0, mfen[1]);
+            this.setCommittedGate(1, mfen[2]);
+        }
+        this.dests = msg.dests
+        this.chessground.set({
+            fen: fen_board,
+            movable: {
+                free: false,
+                color: this.mycolor,
+                dests: this.dests,
+            },
+        });
+        
+        // todo: lobby message
+    }
+
     private onMsgGameStart = (msg) => {
         // console.log("got gameStart msg:", msg);
         if (msg.gameId !== this.gameId) return;
@@ -587,6 +613,9 @@ export default class RoundController {
     }
 
     private onMsgBoard = (msg) => {
+        console.log("onMsgBoard")
+        console.log(msg)
+        console.log(["this.ply", this.ply, "msg.ply", msg.ply])
         if (msg.gameId !== this.gameId) return;
 
         // prevent sending premove/predrop when (auto)reconnecting websocked asks server to (re)sends the same board to us
@@ -598,6 +627,8 @@ export default class RoundController {
         if (latestPly) this.ply = msg.ply
 
         this.fullfen = msg.fen;
+        console.log("A")
+        console.log(latestPly)
 
         if (isVariantClass(this.variant, 'gate')) {
             // When castling with gating is possible
@@ -628,10 +659,12 @@ export default class RoundController {
             this.setCommittedGate(0, mfen[1]);
             this.setCommittedGate(1, mfen[2]);
         }
+        console.log("B")
 
         this.turnColor = parts[1] === "w" ? "white" : "black";
 
         if (msg.steps.length > 1) {
+            console.log("C")
             this.steps = [];
             const container = document.getElementById('movelist') as HTMLElement;
             patch(container, h('div#movelist'));
@@ -641,6 +674,7 @@ export default class RoundController {
                 });
             updateMovelist(this);
         } else {
+            console.log(["D", msg.ply, this.steps.length])
             if (msg.ply === this.steps.length) {
                 const step = {
                     'fen': msg.fen,
@@ -649,6 +683,7 @@ export default class RoundController {
                     'turnColor': this.turnColor,
                     'san': msg.steps[0].san,
                     };
+                    console.log("D2")
                 this.steps.push(step);
                 const full = false;
                 const activate = !this.spectator || latestPly;
@@ -1266,6 +1301,9 @@ export default class RoundController {
                 break;
             case "setup":
                 this.onMsgSetup(msg);
+                break;
+            case "prelude":
+                this.onMsgPrelude(msg);
                 break;
             case "count":
                 this.onMsgCount(msg);

@@ -4,7 +4,7 @@
 .musketeer .cg-wrap piece.elephant.white {
     background-image: url('../../images/pieces/musketeer/wE.svg');
 }
-.musketeer .cg-wrap piece.leopard.white {
+.musketeer .cg-wrap piece.lancer.white {
     background-image: url('../../images/pieces/musketeer/wL.svg');
 }
 .musketeer .cg-wrap piece.chancellor.white {
@@ -34,7 +34,7 @@
 .musketeer .cg-wrap piece.elephant.black {
     background-image: url('../../images/pieces/musketeer/bE.svg');
 }
-.musketeer .cg-wrap piece.leopard.black {
+.musketeer .cg-wrap piece.lancer.black {
     background-image: url('../../images/pieces/musketeer/bL.svg');
 }
 .musketeer .cg-wrap piece.chancellor.black {
