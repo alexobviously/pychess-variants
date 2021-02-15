@@ -1251,7 +1251,7 @@ export default class RoundController {
     }
 
     private onMessage = (evt) => {
-        // console.log("<+++ onMessage():", evt.data);
+        console.log("<+++ onMessage():", evt.data);
         const msg = JSON.parse(evt.data);
         switch (msg.type) {
             case "board":
