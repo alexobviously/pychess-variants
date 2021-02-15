@@ -481,6 +481,7 @@ export default class RoundController {
 
     // Musketeer prelude phase
     private onMsgPrelude = (msg) => {
+        this.fullfen = msg.fen
         const parts = msg.fen.split(" ");
         var fen_board = parts[0];
         const mfen = splitMusketeerFen(fen_board);
@@ -504,7 +505,7 @@ export default class RoundController {
                 dests: this.dests, //
             },
         });
-        
+        updateCommittedGates(this, this.vgate0, this.vgate1);
         // todo: lobby message
     }
 
@@ -649,6 +650,9 @@ export default class RoundController {
                     });
                 }
             }
+        }
+        if(isVariantClass(this.variant, 'commitGates')){
+            updateCommittedGates(this, this.vgate0, this.vgate1);
         }
         this.dests = msg.dests;
 
