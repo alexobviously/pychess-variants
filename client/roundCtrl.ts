@@ -496,7 +496,7 @@ export default class RoundController {
             movable: {
                 free: false,
                 color: this.mycolor,
-                dests: this.dests,
+                dests: this.dests, //
             },
         });
         
