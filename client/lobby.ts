@@ -74,7 +74,7 @@ class LobbyController {
         };
 
         //const ws = location.host.includes('pychess') ? 'wss://' : 'ws://';
-        const ws = 'wss://'
+        const ws = (location.host.indexOf('0.0.0.0') === -1) ? 'wss://' : 'ws://'
         this.sock = new Sockette(ws + location.host + "/wsl", opts);
 
         // get seeks when we are coming back after a game

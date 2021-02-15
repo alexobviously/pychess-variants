@@ -698,7 +698,8 @@ class Game:
         promotions = []
         self.dests = dests
         self.promotions = promotions
-        return _fen, dests
+        _color = "white" if white_turn else "black"
+        return _fen, dests, _color
 
     def print_game(self):
         print(self.pgn)

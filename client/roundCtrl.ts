@@ -123,7 +123,7 @@ export default class RoundController {
             };
 
         //const ws = (location.host.indexOf('pychess') === -1) ? 'ws://' : 'wss://';
-        const ws = 'wss://'
+        const ws = (location.host.indexOf('0.0.0.0') === -1) ? 'wss://' : 'ws://'
         this.sock = new Sockette(ws + location.host + "/wsr", opts);
 
         this.model = model;
@@ -491,11 +491,16 @@ export default class RoundController {
             this.setCommittedGate(1, mfen[2]);
         }
         this.dests = msg.dests
+        this.turnColor = msg.color
+        console.log("msgprelude")
+        console.log(msg)
+        console.log(this.dests);
         this.chessground.set({
             fen: fen_board,
+            turnColor: this.turnColor,
             movable: {
                 free: false,
-                color: this.mycolor,
+                color: this.turnColor,
                 dests: this.dests, //
             },
         });

@@ -552,10 +552,13 @@ async def prelude_move(app, user, game, move, clocks=None, ply=None):
     # log.info("%s move %s %s %s - %s" % (user.username, move, gameId, game.wplayer.username, game.bplayer.username))
     print("prelude_move game.board.fen", game.board.fen)
     game.musketeer_prelude(move)
+    _fen,_dests,color = game.musketeer_prelude('')
+    print([_fen, _dests, color])
     response = {
         'type': 'prelude',
         'fen': game.board.fen,
-        'dests': game.dests
+        'dests': game.dests,
+        'color': color
     }
     print("prelude_move game.board.fen~", game.board.fen)
     if not invalid_move:
