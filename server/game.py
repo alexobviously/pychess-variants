@@ -671,25 +671,26 @@ class Game:
                 self.board.initial_fen = _fen
                 self.steps[0]['fen'] = _fen
                 self.set_dests()
-                return _fen, self.dests
-            # remove placed pieces
-            for p in self.prelude_positions:
-                if p[1] in white_dests: del white_dests[white_dests.index(p[1])]
-                if p[1] in black_dests: del black_dests[black_dests.index(p[1])]
-                if p[0] in placement_pieces.values():
-                    del placement_pieces[list(placement_pieces.keys())[list(placement_pieces.values()).index(p[0])]]
-            # set dests
-            dests = {}
-            for p in placement_pieces:
-                dests[p] = white_dests if placement_pieces[p].isupper() else black_dests
-            # create fen
-            part1 = ('3' + (placement_pieces['d5'] if 'd5' in placement_pieces else '1') + (placement_pieces['e5'] if 'e5' in placement_pieces else '1') + '3').replace('31', '4').replace('13', '4')
-            part2 = ('3' + (placement_pieces['d4'] if 'd4' in placement_pieces else '1') + (placement_pieces['e4'] if 'e4' in placement_pieces else '1') + '3').replace('31', '4').replace('13', '4')
-            part3 = ''
-            part4 = ''
-
-            col = 'w' if white_turn else 'b'
-            _fen = f'{black_pocket_fen}/8/rnbqkbnr/pppppppp/{part1}/{part2}/PPPPPPPP/RNBQKBNR/8/{white_pocket_fen} {col} KQkq - 0 1'
+                _color = "white" if white_turn else "black"
+                return _fen, self.dests, _color
+            else: 
+                # remove placed pieces
+                for p in self.prelude_positions:
+                    if p[1] in white_dests: del white_dests[white_dests.index(p[1])]
+                    if p[1] in black_dests: del black_dests[black_dests.index(p[1])]
+                    if p[0] in placement_pieces.values():
+                        del placement_pieces[list(placement_pieces.keys())[list(placement_pieces.values()).index(p[0])]]
+                # set dests
+                dests = {}
+                for p in placement_pieces:
+                    dests[p] = white_dests if placement_pieces[p].isupper() else black_dests
+                # create fen
+                part1 = ('3' + (placement_pieces['d5'] if 'd5' in placement_pieces else '1') + (placement_pieces['e5'] if 'e5' in placement_pieces else '1') + '3').replace('31', '4').replace('13', '4')
+                part2 = ('3' + (placement_pieces['d4'] if 'd4' in placement_pieces else '1') + (placement_pieces['e4'] if 'e4' in placement_pieces else '1') + '3').replace('31', '4').replace('13', '4')
+                part3 = ''
+                part4 = ''
+                col = 'w' if white_turn else 'b'
+                _fen = f'{black_pocket_fen}/8/rnbqkbnr/pppppppp/{part1}/{part2}/PPPPPPPP/RNBQKBNR/8/{white_pocket_fen} {col} KQkq - 0 1'
         print(["_fen", _fen, "self.board.fen", self.board.fen])
         self.board.fen = _fen
         print(["_fen", _fen, "self.board.fen", self.board.fen])
