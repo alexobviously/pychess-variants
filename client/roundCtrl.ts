@@ -620,9 +620,7 @@ export default class RoundController {
     }
 
     private onMsgBoard = (msg) => {
-        console.log("onMsgBoard")
-        console.log(msg)
-        console.log(["this.ply", this.ply, "msg.ply", msg.ply])
+        console.log("onMsgBoard: "+msg)
         if (msg.gameId !== this.gameId) return;
 
         // prevent sending premove/predrop when (auto)reconnecting websocked asks server to (re)sends the same board to us
@@ -634,8 +632,6 @@ export default class RoundController {
         if (latestPly) this.ply = msg.ply
 
         this.fullfen = msg.fen;
-        console.log("A")
-        console.log(latestPly)
 
         if (isVariantClass(this.variant, 'gate')) {
             // When castling with gating is possible
@@ -651,30 +647,29 @@ export default class RoundController {
                 }
             }
         }
-        if(isVariantClass(this.variant, 'commitGates')){
-            updateCommittedGates(this, this.vgate0, this.vgate1);
-        }
-        this.dests = msg.dests;
 
+        this.dests = msg.dests;
         // list of legal promotion moves
         this.promotions = msg.promo;
         this.clocktimes = msg.clocks;
 
         const parts = msg.fen.split(" ");
         var fen_board = parts[0];
-        const mfen = splitMusketeerFen(fen_board);
-        fen_board = mfen[0];
-        if(this.hasCommittedGates){
-            console.log("set committed gates (onmsgboard)");
-            this.setCommittedGate(0, mfen[1]);
-            this.setCommittedGate(1, mfen[2]);
+
+        if(isVariantClass(this.variant, 'commitGates')){
+            updateCommittedGates(this, this.vgate0, this.vgate1);
+            const mfen = splitMusketeerFen(fen_board);
+            fen_board = mfen[0];
+            if(this.hasCommittedGates){
+                console.log("set committed gates (onmsgboard)");
+                this.setCommittedGate(0, mfen[1]);
+                this.setCommittedGate(1, mfen[2]);
+            }
         }
-        console.log("B")
 
         this.turnColor = parts[1] === "w" ? "white" : "black";
 
         if (msg.steps.length > 1) {
-            console.log("C")
             this.steps = [];
             const container = document.getElementById('movelist') as HTMLElement;
             patch(container, h('div#movelist'));
@@ -684,7 +679,6 @@ export default class RoundController {
                 });
             updateMovelist(this);
         } else {
-            console.log(["D", msg.ply, this.steps.length])
             if (msg.ply === this.steps.length) {
                 const step = {
                     'fen': msg.fen,
@@ -693,7 +687,6 @@ export default class RoundController {
                     'turnColor': this.turnColor,
                     'san': msg.steps[0].san,
                     };
-                    console.log("D2")
                 this.steps.push(step);
                 const full = false;
                 const activate = !this.spectator || latestPly;
@@ -832,9 +825,23 @@ export default class RoundController {
             // 960 king takes rook castling is not capture
             capture = (this.chessground.state.pieces[move[move.length - 1]] !== undefined && step.san.slice(0, 2) !== 'O-') || (step.san.slice(1, 2) === 'x');
         }
+        this.fullfen = step.fen;
+        const parts = step.fen.split(" ");
+        var fen_board = parts[0];
+
+        if(isVariantClass(this.variant, 'commitGates')){
+            updateCommittedGates(this, this.vgate0, this.vgate1);
+            const mfen = splitMusketeerFen(fen_board);
+            fen_board = mfen[0];
+            if(this.hasCommittedGates){
+                console.log("set committed gates (onmsgboard)");
+                this.setCommittedGate(0, mfen[1]);
+                this.setCommittedGate(1, mfen[2]);
+            }
+        }
 
         this.chessground.set({
-            fen: step.fen,
+            fen: fen_board,
             turnColor: step.turnColor,
             movable: {
                 free: false,
@@ -844,7 +851,7 @@ export default class RoundController {
             check: step.check,
             lastMove: move,
         });
-        this.fullfen = step.fen;
+
         updatePockets(this, this.vpocket0, this.vpocket1);
 
         if (isVariantClass(this.variant, 'showCount')) {
