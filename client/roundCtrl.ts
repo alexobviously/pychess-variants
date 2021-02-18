@@ -496,12 +496,14 @@ export default class RoundController {
         console.log("msgprelude")
         console.log(msg)
         console.log(this.dests);
+        console.log("this.turnColor: "+this.turnColor);
+        console.log("this.mycolor: "+this.mycolor);
         this.chessground.set({
             fen: fen_board,
             turnColor: this.turnColor,
             movable: {
                 free: false,
-                color: this.turnColor,
+                color: this.mycolor,
                 dests: this.dests, //
             },
         });

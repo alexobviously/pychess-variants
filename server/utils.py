@@ -561,6 +561,7 @@ async def prelude_move(app, user, game, move, clocks=None, ply=None):
         'color': color
     }
     print("prelude_move game.board.fen~", game.board.fen)
+    print(["response", response])
     if not invalid_move:
         #board_response = game.get_board(full=game.board.ply == 1)
 

@@ -156,6 +156,7 @@ async def round_socket_handler(request):
                             await opp_player.event_queue.put(game.game_start)
 
                     elif data["type"] == "prelude":
+                        print("___PRELUDE MESSAGE___")
                         # Musketeer game starts with a prelude phase
                         game = await load_game(request.app, data["gameId"])
 
