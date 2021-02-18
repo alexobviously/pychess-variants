@@ -647,7 +647,8 @@ class Game:
             col = 'w' if white_turn else 'b'
             _fen = f'********/8/{part1}/{part2}/8/8/{part3}/{part4}/8/******** {col} KQkq - 0 1'
         else:
-            placement_pieces = {'d4': self.prelude_pieces[0].upper(), 'e4': self.prelude_pieces[1].upper(), 'e5': self.prelude_pieces[0].lower(), 'd5': self.prelude_pieces[1].lower()}
+            placement_pieces = {'d4': self.prelude_pieces[0].upper(), 'e5': self.prelude_pieces[0].lower(), 'e4': self.prelude_pieces[1].upper(), 'd5': self.prelude_pieces[1].lower()}
+            placement_order = ['d4', 'e5', 'e4', 'd5'] # maybe we should refactor a little bit
             white_dests = list(map(lambda x: x+'1', FILES[0:8]))
             black_dests = list(map(lambda x: x+'8', FILES[0:8]))
             # pockets
@@ -683,7 +684,8 @@ class Game:
                 # set dests
                 dests = {}
                 for p in placement_pieces:
-                    dests[p] = white_dests if placement_pieces[p].isupper() else black_dests
+                    if p == placement_order[len(self.prelude_positions)]:
+                        dests[p] = white_dests if placement_pieces[p].isupper() else black_dests
                 # create fen
                 part1 = ('3' + (placement_pieces['d5'] if 'd5' in placement_pieces else '1') + (placement_pieces['e5'] if 'e5' in placement_pieces else '1') + '3').replace('31', '4').replace('13', '4')
                 part2 = ('3' + (placement_pieces['d4'] if 'd4' in placement_pieces else '1') + (placement_pieces['e4'] if 'e4' in placement_pieces else '1') + '3').replace('31', '4').replace('13', '4')
