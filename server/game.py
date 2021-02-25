@@ -262,6 +262,7 @@ class Game:
 
         if self.status <= STARTED:
             try:
+                print("get_san in game.py")
                 san = self.board.get_san(move)
                 self.lastmove = move
                 self.board.push(move)
@@ -638,12 +639,10 @@ class Game:
             for p in player_positions:
                 dests[setup_positions[p]] = ['h3'] if white_turn else ['a7']
             # create fen
-            print(["setup fen", "prelude_pieces", self.prelude_pieces])
             part1 = ('3' + ('lsdfu'.replace(self.prelude_pieces[0].lower(), '1') if num_prelude_pieces > 0 else 'lsdfu')).replace('31', '4').replace('21', '3')
             part2 = (('3' if num_prelude_pieces == 0 else (self.prelude_pieces[0].lower() + '2')) + ('oheac'.replace(self.prelude_pieces[0].lower(), '1') if num_prelude_pieces > 0 else 'oheac')).replace('31', '4').replace('21', '3')
             part3 = (('OHEAC'.replace(self.prelude_pieces[0].upper(), '1') if num_prelude_pieces > 0 else 'OHEAC') + ('3' if num_prelude_pieces == 0 else ('2' + self.prelude_pieces[0].upper()))).replace('13', '4').replace('12', '3')
             part4 = (('LSDFU'.replace(self.prelude_pieces[0].upper(), '1') if num_prelude_pieces > 0 else 'LSDFU') + '3').replace('13', '4').replace('12', '3')
-            print(["parts", part1, part2, part3, part4])
             col = 'w' if white_turn else 'b'
             _fen = f'********/8/{part1}/{part2}/8/8/{part3}/{part4}/8/******** {col} KQkq - 0 1'
         else:
@@ -693,9 +692,9 @@ class Game:
                 part4 = ''
                 col = 'w' if white_turn else 'b'
                 _fen = f'{black_pocket_fen}/8/rnbqkbnr/pppppppp/{part1}/{part2}/PPPPPPPP/RNBQKBNR/8/{white_pocket_fen} {col} KQkq - 0 1'
-        print(["_fen", _fen, "self.board.fen", self.board.fen])
+        r = random.choice(list(dests.items()))
+        self.random_move = r[0] + random.choice(r[1]) # needed for the AI
         self.board.fen = _fen
-        print(["_fen", _fen, "self.board.fen", self.board.fen])
         self.board.initial_fen = _fen
         self.steps[0]['fen'] = _fen
         promotions = []

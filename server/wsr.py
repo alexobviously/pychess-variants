@@ -104,10 +104,6 @@ async def round_socket_handler(request):
                             print(["msg - board - musketeer", data])
                             # is_prelude = (len(game.prelude_positions) < 4)
                             game.musketeer_prelude('')
-                            # else: pass
-                            # print(f'musketeer fen is {fen}')
-                            # game.board.fen = fen
-                            # game.board.initial_fen = fen
                             board_response = game.get_board(full=True)
                             print(board_response)
                             await ws.send_json(board_response)

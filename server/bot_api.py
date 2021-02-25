@@ -311,6 +311,7 @@ async def bot_move(request):
     user = request.app["users"][username]
     game = request.app["games"][gameId]
 
+    print('utils.play_move in bot_api.py')
     await play_move(request.app, user, game, move)
 
     return web.json_response({"ok": True})

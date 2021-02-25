@@ -57,6 +57,7 @@ class FairyBoard:
             raise
 
     def get_san(self, move):
+        print(f"get_san {move}")
         return sf.get_san(self.variant, self.fen, move, self.chess960, sf.NOTATION_JANGGI if self.variant == "janggi" else sf.NOTATION_DEFAULT)
 
     def legal_moves(self):

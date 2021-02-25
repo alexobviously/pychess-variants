@@ -6,7 +6,7 @@ import string
 from time import monotonic
 
 from const import MOVE, STARTED
-from utils import play_move
+from utils import play_move, prelude_move
 
 log = logging.getLogger(__name__)
 
@@ -24,12 +24,16 @@ async def BOT_task(bot, app):
                 if game.status <= STARTED:
                     await game.abort()
                 break
-
+            
+            musketeer_prelude = (game.variant == 'musketeer' and len(game.prelude_positions) < 4)
             event = json.loads(line)
             if event["type"] != "gameState":
                 continue
             # print("   +++ game_queues get()", event)
-            if random_mover:
+            if musketeer_prelude:
+                await prelude_move(app, bot, game, game.random_move)
+            elif random_mover:
+                print('utils.play_move in ai.py 1')
                 await play_move(app, bot, game, game.random_move)
             elif len(app["workers"]) > 0:
                 AI_move(game, level)
@@ -85,8 +89,13 @@ async def BOT_task(bot, app):
         else:
             starting_player = game.wplayer.username
 
+        musketeer_prelude = (game.variant == 'musketeer' and len(game.prelude_positions) < 4)
+
         if starting_player == bot.username:
-            if random_mover:
+            if musketeer_prelude:
+                await prelude_move(app, bot, game, game.random_move)
+            elif random_mover:
+                print('utils.play_move in ai.py 2')
                 await play_move(app, bot, game, game.random_move)
             else:
                 AI_move(game, level)

@@ -170,6 +170,7 @@ async def load_game(app, game_id, user=None):
                     # print("Count started", count_started)
                     game.board.count_started = ply
 
+            print("get_san in utils.py")
             san = game.board.get_san(move)
             game.board.push(move)
             game.check = game.board.is_checked()
@@ -506,6 +507,7 @@ async def play_move(app, user, game, move, clocks=None, ply=None):
 
     if game.status <= STARTED:
         try:
+            print('game.play_move in utils.py')
             await game.play_move(move, clocks, ply)
         except SystemError:
             invalid_move = True
